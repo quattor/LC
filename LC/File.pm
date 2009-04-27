@@ -36,7 +36,7 @@ use LC::Exception qw(throw_error throw_warning SUCCESS);
 use LC::Fatal;
 use LC::Stat qw(:ST :S file_type);
 use LC::Util qw(random_name);
-use POSIX qw(:errno_h O_RDONLY O_CREAT O_EXCL);
+use POSIX qw(:errno_h);
 use sigtrap qw(die normal-signals); # so that ^C and such trigger END()
 
 #

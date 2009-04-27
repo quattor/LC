@@ -14,7 +14,7 @@ package LC::Option;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.39 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -746,9 +746,11 @@ sub handle_help : method {
 
 sub handle_manual : method {
     my($self) = @_;
+    my($path);
 
     return(SUCCESS) unless $self->value("manual");
-    unless (-f $0 and system("perldoc", $0) == 0) {
+    $path = $1 if $0 =~ /^(.+)$/ and -f $1;
+    unless ($path and system("perldoc", $path) == 0) {
 	print("Please run: perldoc <the-full-path-of-this-program>\n");
     }
     exit(0);
@@ -966,7 +968,7 @@ LC::Option - module to ease options handling
         [ "directory:boolean",   0,  "consider directories" ],
     );
     LC::Option::parse_argv($OS);
-    $OS->handle_help($0, q$Revision: 1.2 $, q$Date: 2008/06/30 15:27:49 $ );
+    $OS->handle_help($0, q$Revision: 1.39 $, q$Date: 2009/04/23 06:59:02 $ );
     if ($OS->value("mac")) {
         ...
     }
@@ -1117,7 +1119,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Option.pm,v 1.2 2008/06/30 15:27:49 poleggi Exp $
+$Id: Option.pm,v 1.39 2009/04/23 06:59:02 cons Exp $
 
 =head1 TODO
 
