@@ -14,7 +14,7 @@ package LC::Sysinfo;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.40 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -1148,7 +1148,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Sysinfo.pm,v 1.2 2008/06/30 15:27:49 poleggi Exp $
+$Id: Sysinfo.pm,v 1.40 2006/01/17 13:51:06 cons Exp $
 
 =head1 TODO
 

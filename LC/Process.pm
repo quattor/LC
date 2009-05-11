@@ -14,7 +14,7 @@ package LC::Process;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.4 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.46 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -521,7 +521,7 @@ sub alive : method {
 
 sub execute ($%) {
     my($cmd, %opt) = @_;
-    my($timeout, $proc, $ref, $nfound, $limit, $done, $eof, $error);
+    my($timeout, $proc, $ref, $nfound, $limit, $done, $eof, $error, $res);
     my($bufin, $bufout, $buferr, $rin, $rout, $win, $wout);
     my($fdin, $fdout, $fderr);
     local(*FHIN, *FHOUT, *FHERR);
@@ -529,13 +529,13 @@ sub execute ($%) {
     #
     # init
     #
-    unless (ref($cmd) and ref($cmd) eq "ARRAY") {
+    unless (ref($cmd) eq "ARRAY") {
 	throw_error("not an array reference", $cmd);
 	return();
     }
-    if (exists($opt{"timeout"})) {
-	$timeout = $opt{"timeout"};
-	delete($opt{"timeout"});
+    if (exists($opt{timeout})) {
+	$timeout = $opt{timeout};
+	delete($opt{timeout});
     } else {
 	$timeout = 0;
     }
@@ -548,43 +548,43 @@ sub execute ($%) {
     # create and start the process
     #
     $proc = LC::Process->new(@$cmd);
-    if (defined($opt{"stdin"})) {
+    if (defined($opt{stdin})) {
 	# use the supplied input
 	$proc->pconnect(0, \*FHIN);
-	$bufin = $opt{"stdin"};
-	$opt{"stdin"} = 1;
+	$bufin = $opt{stdin};
+	$opt{stdin} = 1;
     } else {
 	$bufin = "";
-	delete($opt{"stdin"});
+	delete($opt{stdin});
     }
-    if ($opt{"stdout"}) {
+    if ($opt{stdout}) {
 	# redirect stdout
-	$ref = $opt{"stdout"};
-	if (ref($ref) and ref($ref) eq "SCALAR") {
+	$ref = $opt{stdout};
+	if (ref($ref) eq "SCALAR" or ref($ref) eq "CODE") {
 	    $proc->pconnect(1, \*FHOUT);
 	} else {
-	    throw_error("not a scalar reference", $ref);
+	    throw_error("not a scalar or code reference", $ref);
 	    return();
 	}
     }
-    if ($opt{"stderr"}) {
+    if ($opt{stderr}) {
 	# redirect stderr
-	$ref = $opt{"stderr"};
+	$ref = $opt{stderr};
 	if ($ref eq "stdout") {
-	    # special case, we merge stdout and stderr
+	    # special case: we merge stdout and stderr
 	    $proc->fconnect(2, "");
-	    delete($opt{"stderr"});
-	} elsif (ref($ref) and ref($ref) eq "SCALAR") {
+	    delete($opt{stderr});
+	} elsif (ref($ref) eq "SCALAR" or ref($ref) eq "CODE") {
 	    $proc->pconnect(2, \*FHERR);
 	} else {
-	    throw_error("not a scalar reference", $ref);
+	    throw_error("not a scalar or code reference", $ref);
 	    return();
 	}
     }
-    if ($opt{"pid"}) {
+    if ($opt{pid}) {
 	# remember pid
-	$ref = $opt{"pid"};
-	unless (ref($ref) and ref($ref) eq "SCALAR") {
+	$ref = $opt{pid};
+	unless (ref($ref) eq "SCALAR") {
 	    throw_error("not a scalar reference", $ref);
 	    return();
 	}
@@ -598,19 +598,19 @@ sub execute ($%) {
     #
     $eof = $error = 0;
     $win = $rin = "";
-    if ($opt{"stdin"}) {
+    if ($opt{stdin}) {
 	$fdin = fileno(FHIN);
 	vec($win, $fdin, 1) = 1;
     } else {
 	$fdin = -1;
     }
-    if ($opt{"stdout"}) {
+    if ($opt{stdout}) {
 	$fdout = fileno(FHOUT);
 	vec($rin, $fdout, 1) = 1;
     } else {
 	$fdout = -1;
     }
-    if ($opt{"stderr"}) {
+    if ($opt{stderr}) {
 	$fderr = fileno(FHERR);
 	vec($rin, $fderr, 1) = 1;
     } else {
@@ -619,7 +619,7 @@ sub execute ($%) {
     $bufout = $buferr = "";
     $limit = time + $timeout;
     while (not $timeout or time < $limit) {
-	if (not $opt{"stdin"} and not $opt{"stdout"} and not $opt{"stderr"}) {
+	if (not $opt{stdin} and not $opt{stdout} and not $opt{stderr}) {
 	    # we don't play with std* so we only check if it's alive
 	    if ($proc->alive()) {
 		sleep(1);
@@ -663,6 +663,13 @@ sub execute ($%) {
 		$error = ["sysread(out)", $!];
 		last;
 	    }
+	    if ($done and ref($opt{stdout}) eq "CODE") {
+		$res = $opt{stdout}->($bufout);
+		if ($res) {
+		    $error = ["callback(out)", $res];
+		    last;
+		}
+	    }
 	    vec($rin, $fdout, 1) = 0 unless $done;
 	}
 	# stderr
@@ -672,10 +679,17 @@ sub execute ($%) {
 		$error = ["sysread(err)", $!];
 		last;
 	    }
+	    if ($done and ref($opt{stderr}) eq "CODE") {
+		$res = $opt{stderr}->($buferr);
+		if ($res) {
+		    $error = ["callback(err)", $res];
+		    last;
+		}
+	    }
 	    vec($rin, $fderr, 1) = 0 unless $done;
 	}
 	# finished?
-	if (($fdin  >= 0 and vec($win, $fdin, 1)) or
+	if (($fdin  >= 0 and vec($win, $fdin,  1)) or
 	    ($fdout >= 0 and vec($rin, $fdout, 1)) or
 	    ($fderr >= 0 and vec($rin, $fderr, 1))) {
 	    # still something to do
@@ -713,8 +727,8 @@ sub execute ($%) {
     # put the status in $? anyway
     $? = $proc->status();
     # set the output buffers anyway
-    ${ $opt{"stdout"} } = $bufout if $opt{"stdout"};
-    ${ $opt{"stderr"} } = $buferr if $opt{"stderr"};
+    ${ $opt{stdout} } = $bufout if $opt{stdout} and ref($opt{stdout}) eq "SCALAR";
+    ${ $opt{stderr} } = $buferr if $opt{stderr} and ref($opt{stderr}) eq "SCALAR";
     # return success status
     return(SUCCESS) unless $error;
     throw_error($error->[0], $error->[1]);
@@ -787,7 +801,7 @@ sub daemonise () {
 	return();
     }
     # fork and let dad die
-    local $SIG{"CHLD"} = sub { $chld = 1 };
+    local $SIG{CHLD} = sub { $chld = 1 };
     $pid = fork();
     unless (defined($pid)) {
 	throw_error("fork()", $!);
@@ -1030,58 +1044,6 @@ sub sendmail ($$;%) {
     return($data);
 }
 
-#+++############################################################################
-#                                                                              #
-# test bed                                                                     #
-#                                                                              #
-#---############################################################################
-
-package LC::Process::Test;
-use strict;
-use warnings;
-
-use LC::Exception;
-
-our($_EC);
-
-sub _test_output ($$$) {
-    my($timeout, $merge, $cmdref) = @_;
-    my($stdout, $stderr, $error, %opt, $success);
-
-    $stdout = $stderr = "";
-    $opt{"timeout"} = $timeout if $timeout;
-    $opt{"stdout"} = \$stdout;
-    $opt{"stderr"} = $merge ? "stdout" : \$stderr;
-    $success = LC::Process::execute($cmdref, %opt);
-    if ($success) {
-	$success = "yes";
-	$error = "";
-    } else {
-	$success = "no";
-	$error = $_EC->error();
-	$_EC->ignore_error();
-    }
-    print("#"x72, "\n");
-    print("execute(@{$cmdref}) with timeout=$timeout, merge=$merge\n");
-    print("  success = $success\n");
-    print("  error   = $error\n");
-    print("  status  = $?\n");
-    print("  stdout  = <<$stdout>>\n");
-    print("  stderr  = <<$stderr>>\n") unless $merge;
-}
- 
-unless (defined(caller)) {
-    $_EC = LC::Exception::Context->new();
-    $_EC->will_report_warnings();
-    $_EC->will_store_errors();
-    _test_output(0, 0, [qw(date)]);
-    _test_output(0, 0, [qw(ls / /UnLiKeLy)]);
-    _test_output(0, 1, [qw(ls / /UnLiKeLy)]);
-    _test_output(0, 0, [qw(UnLiKeLy)]);
-    _test_output(5, 0, [qw(ping localhost)]);
-    _test_output(5, 0, [qw(cat)]);
-}
-
 1;
 
 __END__
@@ -1236,14 +1198,14 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Process.pm,v 1.4 2008/07/03 18:00:36 munoz Exp $
+$Id: Process.pm,v 1.46 2008/09/05 12:00:12 cons Exp $
 
 =head1 TODO
 
 =over
 
 =item * when a process is not mortal, it may stay as zombie when the program ends
-(could we do a local $SIG{"CHLD"} = "IGNORE"?)
+(could we do a local $SIG{CHLD} = "IGNORE"?)
 
 =item * handle stopped/continued processes (i.e. state updated)?
 

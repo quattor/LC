@@ -14,7 +14,7 @@ package LC::ISO88591;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.1 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.19 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -464,6 +464,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: ISO88591.pm,v 1.1 2008/07/01 11:46:05 poleggi Exp $
+$Id: ISO88591.pm,v 1.19 2006/12/18 15:08:47 cons Exp $
 
 =cut

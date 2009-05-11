@@ -14,7 +14,7 @@ package LC::Util;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.36 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -805,6 +805,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Util.pm,v 1.2 2008/06/30 15:27:49 poleggi Exp $
+$Id: Util.pm,v 1.36 2006/07/25 13:22:54 cons Exp $
 
 =cut

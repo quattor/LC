@@ -14,7 +14,7 @@ package LC::Secure;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.10 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -577,7 +577,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Secure.pm,v 1.2 2008/06/30 15:27:49 poleggi Exp $
+$Id: Secure.pm,v 1.10 2006/04/04 12:13:58 cons Exp $
 
 =head1 TODO
 

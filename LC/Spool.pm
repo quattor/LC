@@ -14,7 +14,7 @@ package LC::Spool;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.1 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.12 $ =~ /(\d+)\.(\d+)/);
 
 #
 # used modules
@@ -409,6 +409,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Spool.pm,v 1.1 2008/07/01 11:46:05 poleggi Exp $
+$Id: Spool.pm,v 1.12 2006/01/10 14:56:07 cons Exp $
 
 =cut

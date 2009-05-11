@@ -14,7 +14,7 @@ package LC::Check;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.4 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.19 $ =~ /(\d+)\.(\d+)/);
 
 #
 # modules
@@ -364,16 +364,21 @@ sub status ($;%) {
 	# lstat the file
 	#
 	@stat = LC::Fatal::lstat($path);
-	unless (@stat) {
-	    # a non existing file is also an error by default!
-	    # use grep(-f $_, ...) if you want to be safe
-	    $_EC->rethrow_error();
-	    return();
+	if (@stat) {
+	    # we can't chown() or chmod() symlinks
+	    next if -l _;
+	} else {
+	    if ($NoAction and $_EC->error()->reason() == ENOENT) {
+		# maybe the target does not _yet_ exist, we can't do much
+		# in this case so we ignore the error and assume the worst...
+		$_EC->ignore_error();
+	    } else {
+		$_EC->rethrow_error();
+		return();
+	    }
 	}
-	# we can't chown() or chmod() symlinks
-	next if -l _;
 	if (exists($opt{owner})) {
-	    unless ($uid == $stat[ST_UID]) {
+	    unless (@stat and $uid == $stat[ST_UID]) {
 		$todo |= DO_CHOWN;
 		push(@todo, $message{owner});
 	    }
@@ -381,7 +386,7 @@ sub status ($;%) {
 	    $uid = $stat[ST_UID];
 	}
 	if (exists($opt{group})) {
-	    unless ($gid == $stat[ST_GID]) {
+	    unless (@stat and $gid == $stat[ST_GID]) {
 		$todo |= DO_CHOWN;
 		push(@todo, $message{group});
 	    }
@@ -389,16 +394,21 @@ sub status ($;%) {
 	    $gid = $stat[ST_GID];
 	}
 	if (exists($opt{mode})) {
-	    $mode = $stat[ST_MODE] & S_IALLUGO;
-	    $mode &= ~$mode_clear;
-	    $mode |=  $mode_set;
-	    unless ($mode == ($stat[ST_MODE] & S_IALLUGO)) {
+	    if (@stat) {
+		$mode = $stat[ST_MODE] & S_IALLUGO;
+		$mode &= ~$mode_clear;
+		$mode |=  $mode_set;
+		unless ($mode == ($stat[ST_MODE] & S_IALLUGO)) {
+		    $todo |= DO_CHMOD;
+		    push(@todo, $message{mode});
+		}
+	    } else {
 		$todo |= DO_CHMOD;
 		push(@todo, $message{mode});
 	    }
 	}
 	if (exists($opt{mtime})) {
-	    unless ($opt{mtime} == $stat[ST_MTIME]) {
+	    unless (@stat and $opt{mtime} == $stat[ST_MTIME]) {
 		$todo |= DO_UTIME;
 		push(@todo, $message{mtime});
 	    }
@@ -1152,7 +1162,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Check.pm,v 1.4 2008/07/03 18:00:36 munoz Exp $
+$Id: Check.pm,v 1.19 2008/10/01 14:30:17 cons Exp $
 
 =head1 TODO
 

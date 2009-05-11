@@ -14,7 +14,7 @@ package LC::Exception;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.22 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -1109,7 +1109,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Exception.pm,v 1.2 2008/06/30 15:27:49 poleggi Exp $
+$Id: Exception.pm,v 1.22 2006/01/16 10:47:12 cons Exp $
 
 =head1 TODO
 

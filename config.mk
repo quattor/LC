@@ -1,10 +1,10 @@
 COMP=perl-LC
 NAME=$(COMP)
 DESCR=LC Perl Modules
-VERSION=1.1.4
+VERSION=1.1.5
 RELEASE=1
 AUTHOR=Lionel Cons <Lionel.Cons@cern.ch>
-MAINTAINER=German Cancio <German.Cancio@cern.ch>,Marco Emilio Poleggi <Marco.Poleggi@cern.ch>
+MAINTAINER=Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>, Marco Emilio Poleggi <Marco.Poleggi@cern.ch>
 
 ifeq ($(QTTR_OS),Linux)
 QTTR_PERLLIB=/usr/lib/perl5/site_perl
@@ -17,4 +17,4 @@ MANSECT=3
 
 MAN3DIR=$(QTTR_MAN)/man$(MANSECT)
 
-DATE=27/04/09 14:43
+DATE=11/05/09 12:23

@@ -14,8 +14,9 @@ package LC::File;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.5 $ =~ /(\d+)\.(\d+)/);
-use Fcntl;
+use POSIX qw(O_WRONLY);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.20 $ =~ /(\d+)\.(\d+)/);
+
 #
 # export control
 #
@@ -36,7 +37,7 @@ use LC::Exception qw(throw_error throw_warning SUCCESS);
 use LC::Fatal;
 use LC::Stat qw(:ST :S file_type);
 use LC::Util qw(random_name);
-use POSIX qw(:errno_h);
+use POSIX qw(:errno_h O_RDONLY O_CREAT O_EXCL);
 use sigtrap qw(die normal-signals); # so that ^C and such trigger END()
 
 #
@@ -55,7 +56,7 @@ our(
     %_Lock,		# locked files (file path => lock path)
 );
 
-$_EC = LC::Exception::Context->new->will_store_errors;
+$_EC = LC::Exception::Context->new()->will_store_errors();
 
 #
 # forward declarations for recursive functions
@@ -96,7 +97,8 @@ sub directory_contents ($) {
 
 sub path_for_open ($) {
     my($path) = @_;
-    $path =~ s#^([^/])#./$1#;
+
+    $path =~ s=^([^/])=./$1=;
     return($path . "\0");
 }
 
@@ -114,12 +116,12 @@ sub file_contents ($;$) {
     # write to a file
     if (defined($contents)) {
 	unless (remove($path)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
-	unless (sysopen(FH, path_for_open($path), O_WRONLY|O_CREAT|O_EXCL)) {
-	    throw_error ("sysopen(>$path)", $!);
-	    return ();
+	unless (sysopen(FH, path_for_open($path), O_CREAT|O_WRONLY|O_EXCL)) {
+	    throw_error("sysopen($path, O_WRONLY|O_CREAT|O_EXCL)", $!);
+	    return();
 	}
 	unless (binmode(FH)) {
 	    throw_error("binmode($path)", $!);
@@ -285,11 +287,11 @@ sub remove ($) {
 	$busy = substr($path, 0, $slash) . "#" . substr($path, $slash);
     }
     unless (remove($busy)) {
-        $_EC->rethrow_error;
+        $_EC->rethrow_error();
 	return();
     }
     unless (LC::Fatal::rename($path, $busy)) {
-        $_EC->rethrow_error;
+        $_EC->rethrow_error();
 	return();
     }
     # success
@@ -321,7 +323,7 @@ sub destroy ($) {
 	    next unless $name =~ /^(.*)$/;
 	    $name = $1; # untainted now...
 	    unless (destroy("$path/$name")) {
-		$_EC->rethrow_error;
+		$_EC->rethrow_error();
 		return();
 	    }
         }
@@ -331,14 +333,14 @@ sub destroy ($) {
 	}
 	# remove the (now) empty directory
 	unless (LC::Fatal::rmdir($path)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
     }
     # destroy something else
     else {
 	unless (LC::Fatal::unlink($path)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
     }
@@ -356,15 +358,15 @@ sub change_stat ($@) {
     my($path, @stat) = @_;
 
     unless (LC::Fatal::chmod($stat[ST_MODE] & S_IALLUGO, $path)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     unless (LC::Fatal::utime($stat[ST_ATIME], $stat[ST_MTIME], $path)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     unless (LC::Fatal::chown($stat[ST_UID], $stat[ST_GID], $path)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     return(SUCCESS);
@@ -393,7 +395,7 @@ sub copy ($$;%) {
     # init
     if ($preserve) {
 	unless (@stat = LC::Fatal::stat($from)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
     }
@@ -407,7 +409,7 @@ sub copy ($$;%) {
     }
     if ($mode eq ">") {
 	unless (remove($to)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
     }
@@ -451,7 +453,7 @@ sub copy ($$;%) {
     # maybe preserve stat info
     if ($preserve) {
 	unless (change_stat($to, @stat)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    goto CLEAN_AND_GIVEUP;
 	}
     }
@@ -481,13 +483,13 @@ sub move ($$) {
     }
     # we now try to copy and preserve mode, owner...
     unless (copy_preserve($from, $to)) {
-	throw_error("copy_preserve($from, $to)", $_EC->error);
+	throw_error("copy_preserve($from, $to)", $_EC->error());
 	return();
     }
     # we finally remove the source
     unless (LC::Fatal::unlink($from)) {
 	unlink($to) or throw_warning("unlink($to)", $!);
-        $_EC->rethrow_error;
+        $_EC->rethrow_error();
 	return();
     }
     # succes
@@ -503,17 +505,17 @@ sub move ($$) {
 sub makedir ($;$) {
     my($dir, $mode) = @_;
 
-    $dir =~ s#/+$##;
-    unless (-d $dir) {
+    $dir =~ s=/+$==;
+    unless ($dir eq "" or -d $dir) {
 	$mode = 0755 unless defined($mode);
-        if ($dir =~ m#(.+)/.*#) {
+        if ($dir =~ m=^(.+)/[^/]+$=) {
             unless (makedir($1, $mode)) {
-		$_EC->rethrow_error;
+		$_EC->rethrow_error();
 		return();
 	    }
         }
 	unless (LC::Fatal::mkdir($dir, $mode)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
     }
@@ -560,7 +562,7 @@ sub rglob ($) {
     }
     unless ($list) {
 	# oops, error while reading directory...
-        $_EC->rethrow_error;
+        $_EC->rethrow_error();
 	return();
     }
     # check directory contents
@@ -620,11 +622,11 @@ sub random_directory ($;$) {
 	$path = $template;
 	$path =~ s/X+/random_name()/eg;
 	unless (LC::Fatal::mkdir($path, $mode)) {
-	    if ($_EC->error->reason == EEXIST) {
-		$_EC->ignore_error;
+	    if ($_EC->error()->reason() == EEXIST) {
+		$_EC->ignore_error();
 		next;
 	    }
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
 	return($path);
@@ -855,6 +857,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: File.pm,v 1.5 2008/10/14 13:59:42 munoz Exp $
+$Id: File.pm,v 1.20 2009/05/07 08:13:13 cons Exp $
 
 =cut
