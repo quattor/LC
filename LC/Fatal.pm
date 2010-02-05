@@ -2,7 +2,7 @@
 #                                                                              #
 # File: Fatal.pm                                                               #
 #                                                                              #
-# Description: fatal equivalent of some core Perl functions                    #
+# Description: fatal equivalents of some core Perl functions                   #
 #                                                                              #
 #-##############################################################################
 
@@ -14,7 +14,7 @@ package LC::Fatal;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.3 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.5 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -24,8 +24,8 @@ use Exporter;
 our(@ISA, @EXPORT, @EXPORT_OK);
 @ISA = qw(Exporter);
 @EXPORT = qw();
-@EXPORT_OK = qw(open close sysread syswrite chdir chmod chown link lstat mkdir
-		readlink rename rmdir stat symlink unlink utime);
+@EXPORT_OK = qw(chdir chmod chown close fork kill link lstat mkdir open
+		readlink rename rmdir stat symlink sysread syswrite unlink utime);
 
 #
 # used modules
@@ -45,7 +45,7 @@ sub _usable_handle ($) {
     my($ok, $pkg);
 
     if (not $handle) {
-	# don't know what to do with this one...
+	# do not know what to do with this one...
     } elsif (UNIVERSAL::isa($handle, "GLOB")) {
 	# glob: foo(*HANDLE) or foo(\*HANDLE)
 	$ok = $handle;
@@ -53,7 +53,7 @@ sub _usable_handle ($) {
 	# FileHandle object
 	$ok = $handle;
     } elsif (ref($handle)) {
-	# don't know what to do with this one...
+	# do not know what to do with this one...
     } else {
 	# bareword: foo(HANDLE)
 	$ok = $handle;
@@ -76,10 +76,10 @@ sub open (*$) {
 	return();
     }
     {
-	no strict "refs"; # avoid: Can't use string (...) as a symbol ref ...
+	no strict "refs"; # avoid: Cannot use string (...) as a symbol ref ...
 	$res = CORE::open($ufh, $what);
     }
-    return($res) if defined($res);
+    return($res) if $res;
     throw_error("open($fh, $what)", $!);
     return();
 }
@@ -94,7 +94,7 @@ sub close (*) {
 	return();
     }
     {
-	no strict "refs"; # avoid: Can't use string (...) as a symbol ref ...
+	no strict "refs"; # avoid: Cannot use string (...) as a symbol ref ...
 	$res = CORE::close($ufh);
     }
     return($res) if $res;
@@ -116,7 +116,7 @@ sub sysread (*$$;$) {
     }
     $offset = 0 unless defined($offset);
     {
-	no strict "refs"; # avoid: Can't use string (...) as a symbol ref ...
+	no strict "refs"; # avoid: Cannot use string (...) as a symbol ref ...
 	$res = CORE::sysread($ufh, $_[1], $length, $offset);
     }
     return($res) if defined($res);
@@ -135,7 +135,7 @@ sub syswrite (*$;$$) {
     $length = length($_[1]) unless defined($length);
     $offset = 0 unless defined($offset);
     {
-	no strict "refs"; # avoid: Can't use string (...) as a symbol ref ...
+	no strict "refs"; # avoid: Cannot use string (...) as a symbol ref ...
 	$res = CORE::syswrite($ufh, $_[1], $length, $offset);
     }
     return($res) if defined($res);
@@ -151,6 +151,7 @@ sub syswrite (*$;$$) {
 
 sub chmod ($@) {
     my($mode, @paths) = @_;
+
     return(SUCCESS) if CORE::chmod($mode, @paths) == @paths;
     local $" = ", ";
     throw_error("chmod(0" . sprintf("%o", $mode) . ", @paths)", $!);
@@ -159,6 +160,7 @@ sub chmod ($@) {
 
 sub chown ($$@) {
     my($uid, $gid, @paths) = @_;
+
     return(SUCCESS) if CORE::chown($uid, $gid, @paths) == @paths;
     local $" = ", ";
     throw_error("chown($uid, $gid, @paths)", $!);
@@ -167,6 +169,7 @@ sub chown ($$@) {
 
 sub unlink (@) {
     my(@paths) = @_;
+
     return(SUCCESS) if CORE::unlink(@paths) == @paths;
     local $" = ", ";
     throw_error("unlink(@paths)", $!);
@@ -175,6 +178,7 @@ sub unlink (@) {
 
 sub utime ($$@) {
     my($atime, $mtime, @paths) = @_;
+
     return(SUCCESS) if CORE::utime($atime, $mtime, @paths) == @paths;
     local $" = ", ";
     throw_error("utime($atime, $mtime, @paths)", $!);
@@ -182,7 +186,9 @@ sub utime ($$@) {
 }
 
 sub readlink ($) {
-    my($path, $res) = @_;
+    my($path) = @_;
+    my($res);
+
     $res = CORE::readlink($path);
     return($res) if defined($res);
     throw_error("readlink($path)", $!);
@@ -190,7 +196,9 @@ sub readlink ($) {
 }
 
 sub stat ($) {
-    my($path, @res) = @_;
+    my($path) = @_;
+    my(@res);
+
     @res = CORE::stat($path);
     return(@res) if @res;
     throw_error("stat($path)", $!);
@@ -198,7 +206,9 @@ sub stat ($) {
 }
 
 sub lstat ($) {
-    my($path, @res) = @_;
+    my($path) = @_;
+    my(@res);
+
     @res = CORE::lstat($path);
     return(@res) if @res;
     throw_error("lstat($path)", $!);
@@ -207,6 +217,7 @@ sub lstat ($) {
 
 sub rename ($$) {
     my($oldpath, $newpath) = @_;
+
     return(SUCCESS) if CORE::rename($oldpath, $newpath);
     throw_error("rename($oldpath, $newpath)", $!);
     return();    
@@ -214,6 +225,7 @@ sub rename ($$) {
 
 sub link ($$) {
     my($oldpath, $newpath) = @_;
+
     return(SUCCESS) if CORE::link($oldpath, $newpath);
     throw_error("link($oldpath, $newpath)", $!);
     return();    
@@ -221,6 +233,7 @@ sub link ($$) {
 
 sub symlink ($$) {
     my($oldpath, $newpath) = @_;
+
     return(SUCCESS) if CORE::symlink($oldpath, $newpath);
     throw_error("symlink($oldpath, $newpath)", $!);
     return();    
@@ -234,13 +247,16 @@ sub symlink ($$) {
 
 sub chdir ($) {
     my($path) = @_;
+
     return(SUCCESS) if CORE::chdir($path);
     throw_error("chdir($path)", $!);
     return();
 }
 
+# note: only the two-arguments version is supported
 sub mkdir ($$) {
     my($path, $mode) = @_;
+
     return(SUCCESS) if CORE::mkdir($path, $mode);
     throw_error("mkdir($path, 0" . sprintf("%o", $mode) . ")", $!);
     return();
@@ -248,9 +264,34 @@ sub mkdir ($$) {
 
 sub rmdir ($) {
     my($path) = @_;
+
     return(SUCCESS) if CORE::rmdir($path);
     throw_error("rmdir($path)", $!);
     return();
+}
+
+#+++############################################################################
+#                                                                              #
+# process handling                                                             #
+#                                                                              #
+#---############################################################################
+
+sub fork () {
+    my($res);
+
+    $res = CORE::fork();
+    return($res) if defined($res);
+    throw_error("fork()", $!);
+    return();
+}
+
+sub kill ($@) {
+    my($signal, @pids) = @_;
+
+    return(SUCCESS) if CORE::kill($signal, @pids) == @pids;
+    local $" = ", ";
+    throw_error("kill($signal, @pids)", $!);
+    return();    
 }
 
 1;
@@ -259,7 +300,7 @@ __END__
 
 =head1 NAME
 
-LC::Fatal - fatal equivalent of some core Perl functions
+LC::Fatal - fatal equivalents of some core Perl functions
 
 =head1 SYNOPSIS
 
@@ -280,6 +321,9 @@ that:
 =item chmod(), chown(), unlink() and utime() return success only if
 the operation succeeded on _all_ the paths
 
+=item kill() returns success only if the operation succeeded on _all_
+the processes
+
 =item stat() and lstat() work only on paths, not on filehandles
 
 =back
@@ -294,11 +338,19 @@ Implemented functions:
 
 =item chown(UID, GID, PATH...)
 
+=item close(FILEHANDLE)
+
+=item fork()
+
+=item kill(SIGNAL, PID...)
+
 =item link(OLDPATH, NEWPATH)
 
 =item lstat(PATH)
 
 =item mkdir(PATH, MODE)
+
+=item open(FILEHANDLE, EXPRESSION)
 
 =item readlink(PATH)
 
@@ -326,6 +378,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Fatal.pm,v 1.3 2006/01/10 15:48:28 cons Exp $
+$Id: Fatal.pm,v 1.5 2009/10/06 10:12:45 cons Exp $
 
 =cut

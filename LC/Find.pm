@@ -26,7 +26,7 @@ package LC::Find;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.11 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.12 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -212,11 +212,11 @@ sub _cross_ok ($) {
 	    $_Done->{$id} = $Path;
 	}
     }
-    # don't cross device mount points
+    # do not cross device mount points
     unless ($_Flags & FIND_CROSS_DEV) {
 	return() if $Stat->[ST_DEV] != $parent_stat->[ST_DEV];
     }
-    # don't cross AFS volume mount points (dirty hack)
+    # do not cross AFS volume mount points (dirty hack)
     unless ($_Flags & FIND_CROSS_AFS) {
 	return() if $Stat->[ST_DEV] == $_DevAFS and ($Stat->[ST_INO] % 2) == 0 and
 	    ($Path =~ /^\/afs\// or $Path !~ /^\// and $_Cwd =~ /^\/afs\//);
@@ -242,7 +242,7 @@ sub _maybe_chdir_up ($) {
     return(_change_directory($Path, "..", $parent_stat))
 	unless $_Flags & FIND_FOLLOW;
     unless ($TopDir =~ /^\//) {
-	# we've not been given an absolute path, we have to hop
+	# we have not been given an absolute path, we have to hop
 	# through the toplevel directory first!
 	unless (chdir($_Cwd)) {
 	    throw_error("chdir($_Cwd)", $!);
@@ -470,19 +470,19 @@ sub _reset : method {
 
 sub copy_to_global : method {
     my($self) = @_;
-    $_Flags      = $self->flags;
-    $_Cwd        = $self->cwd;
-    $_Done       = $self->done;
-    $_FileCB     = $self->file_callback;
-    $_EnterDirCB = $self->enter_directory_callback;
-    $_LeaveDirCB = $self->leave_directory_callback;
+    $_Flags      = $self->flags();
+    $_Cwd        = $self->cwd();
+    $_Done       = $self->done();
+    $_FileCB     = $self->file_callback();
+    $_EnterDirCB = $self->enter_directory_callback();
+    $_LeaveDirCB = $self->leave_directory_callback();
 }
 
 sub find : method {
     my($self, @dirs) = @_;
     local($_Flags, $_Cwd, $_Done, $_FileCB, $_EnterDirCB, $_LeaveDirCB);
-    $self->_reset or return();
-    $self->copy_to_global;
+    $self->_reset() or return();
+    $self->copy_to_global();
     return(_find(@dirs));
 }
 
@@ -493,14 +493,14 @@ sub find : method {
 sub toplevel : method {
     my($self, $path) = @_;
     my($result, $target);
-    $self->_reset or return();
-    $self->copy_to_global;
-    $target = LC::Find::Target->new;
+    $self->_reset() or return();
+    $self->copy_to_global();
+    $target = LC::Find::Target->new();
     $target->finder($self);
-    $target->copy_to_global;
+    $target->copy_to_global();
     $result = _initialise_toplevel($path);
     return($result) unless $result;
-    $target->copy_from_global;
+    $target->copy_from_global();
     return($target);
 }
 
@@ -583,12 +583,12 @@ sub last_stat : method {
 
 sub copy_to_global : method {
     my($self) = @_;
-    $LC::Find::TopDir = $self->top_dir;
-    $LC::Find::SubDir = $self->sub_dir;
-    $LC::Find::Name   = $self->name;
-    $LC::Find::Path   = $self->path;
-    $LC::Find::Depth  = $self->depth;
-    $LC::Find::Stat   = $self->last_stat;
+    $LC::Find::TopDir = $self->top_dir();
+    $LC::Find::SubDir = $self->sub_dir();
+    $LC::Find::Name   = $self->name();
+    $LC::Find::Path   = $self->path();
+    $LC::Find::Depth  = $self->depth();
+    $LC::Find::Stat   = $self->last_stat();
 }
 
 sub copy_from_global : method {
@@ -604,18 +604,18 @@ sub copy_from_global : method {
 sub aim : method {
     my($self, $name) = @_;
     my($target, $depth);
-    $target = LC::Find::Target->new;
-    $target->finder($self->finder);
+    $target = LC::Find::Target->new();
+    $target->finder($self->finder());
     $target->parent($self);
-    $target->top_dir($self->top_dir);
-    $depth = $self->depth;
+    $target->top_dir($self->top_dir());
+    $depth = $self->depth();
     if ($depth) {
-	$target->sub_dir($self->sub_dir . "/" . $self->name);
-	$target->path($target->top_dir . $target->sub_dir . "/$name");
+	$target->sub_dir($self->sub_dir() . "/" . $self->name());
+	$target->path($target->top_dir() . $target->sub_dir() . "/$name");
 	$target->depth($depth + 1);
     } else {
 	$target->sub_dir("");
-	$target->path($target->top_dir . "/$name");
+	$target->path($target->top_dir() . "/$name");
 	$target->depth(1);
     }
     $target->name($name);
@@ -625,16 +625,16 @@ sub aim : method {
 
 sub do_readdir : method {
     my($self) = @_;
-    $self->finder->copy_to_global;
-    $self->copy_to_global;
+    $self->finder()->copy_to_global();
+    $self->copy_to_global();
     return(LC::Find::_read_current_directory());
 }
 
 sub do_stat : method {
     my($self) = @_;
     my($stat);
-    $self->finder->copy_to_global;
-    $self->copy_to_global;
+    $self->finder()->copy_to_global();
+    $self->copy_to_global();
     $LC::Find::Stat = $stat = LC::Find::_stat_current_path();
     $self->last_stat($stat);
     return($stat);
@@ -642,22 +642,22 @@ sub do_stat : method {
 
 sub do_chdir_down : method {
     my($self) = @_;
-    $self->finder->copy_to_global;
-    $self->copy_to_global;
+    $self->finder()->copy_to_global();
+    $self->copy_to_global();
     return(LC::Find::_maybe_chdir_down());
 }
 
 sub do_chdir_up : method {
     my($self) = @_;
-    $self->finder->copy_to_global;
-    $self->copy_to_global;
+    $self->finder()->copy_to_global();
+    $self->copy_to_global();
     return(LC::Find::_maybe_chdir_up($self->parent->last_stat));
 }
 
 sub can_cross : method {
     my($self) = @_;
-    $self->finder->copy_to_global;
-    $self->copy_to_global;
+    $self->finder()->copy_to_global();
+    $self->copy_to_global();
     return(LC::Find::_cross_ok($self->parent->last_stat));
 }
 
@@ -672,7 +672,7 @@ LC::Find - an enhanced version of the File::Find module
 =head1 SYNOPSIS
 
     use LC::Find qw(:FIND);
-    $finder = LC::Find->new;
+    $finder = LC::Find->new();
     $finder->flags(FIND_FORGIVING|FIND_PARANOID);
     $finder->callback(\&foo);
     $finder->find(@dirs) or die;
@@ -790,7 +790,7 @@ turn permission denied errors into warnings
 
 =item FIND_DONT_LOOP
 
-make sure we don't loop with directories (especially useful when
+make sure we do not loop with directories (especially useful when
 C<FIND_FOLLOW> is set)
 
 =back
@@ -801,7 +801,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Find.pm,v 1.11 2007/10/15 12:37:47 cons Exp $
+$Id: Find.pm,v 1.12 2009/10/06 09:56:31 cons Exp $
 
 =head1 TODO
 

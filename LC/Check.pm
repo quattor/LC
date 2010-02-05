@@ -14,7 +14,7 @@ package LC::Check;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.19 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.21 $ =~ /(\d+)\.(\d+)/);
 
 #
 # modules
@@ -43,7 +43,7 @@ use constant DO_UTIME => 4;
 
 our(
     $Debug,		# print debugging information
-    $NoAction,		# check only, don't fix the problems
+    $NoAction,		# check only, do not fix the problems
     $RootDir,		# root directory when we emulate chroot(3)
     $Silent,		# report only errors
     $Verbose,		# report also when things are correct
@@ -365,11 +365,11 @@ sub status ($;%) {
 	#
 	@stat = LC::Fatal::lstat($path);
 	if (@stat) {
-	    # we can't chown() or chmod() symlinks
+	    # we cannot chown() or chmod() symlinks
 	    next if -l _;
 	} else {
 	    if ($NoAction and $_EC->error()->reason() == ENOENT) {
-		# maybe the target does not _yet_ exist, we can't do much
+		# maybe the target does not _yet_ exist, we cannot do much
 		# in this case so we ignore the error and assume the worst...
 		$_EC->ignore_error();
 	    } else {
@@ -564,7 +564,7 @@ sub link ($$;%) {
     }
     unless (@stat) {
 	if ($NoAction and $_EC->error()->reason() == ENOENT) {
-	    # maybe the target does not _yet_ exist, we can't do much
+	    # maybe the target does not _yet_ exist, we cannot do much
 	    # in this case so we ignore the error...
 	    $_EC->ignore_error();
 	} else {
@@ -1077,7 +1077,7 @@ options: same as C<link()>
 check that SOURCE is really link pointing to TARGET; options:
 hard (if true create a hard link instead of a symlink),
 backup (keep a backup copy of the source, with this suffix),
-nocheck (don't check that target exists, valid only for symlinks),
+nocheck (do not check that target exists, valid only for symlinks),
 force (remove the source if it's a file, valid only for symlinks)
 
 =item mode(MODE, PATH...)
@@ -1156,13 +1156,19 @@ locally override the global C<$Verbose> variable
 
 =back
 
+=head1 NOTES
+
+When a parent directory needs to be created (e.g. for a new file to be
+added), the module refuses to use paths containing C<.> or C<..>, for
+paranoid security reasons. This should not be a problem in practice.
+
 =head1 AUTHOR
 
 Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Check.pm,v 1.19 2008/10/01 14:30:17 cons Exp $
+$Id: Check.pm,v 1.21 2010/01/19 07:43:14 cons Exp $
 
 =head1 TODO
 

@@ -14,7 +14,7 @@ package LC::Process;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.46 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.58 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -25,7 +25,7 @@ our(@ISA, @EXPORT, @EXPORT_OK);
 @ISA = qw(Exporter);
 @EXPORT = qw();
 @EXPORT_OK = qw(execute output toutput run trun daemonise
-		pidcheck pidset cwait cfork sendmail);
+		pidcheck pidset pidsetup pidtouch cwait cfork sendmail);
 
 #
 # used modules
@@ -33,7 +33,8 @@ our(@ISA, @EXPORT, @EXPORT_OK);
 
 use LC::Exception qw(throw_error throw_warning SUCCESS);
 use LC::File qw(SYSBUFSIZE path_for_open file_contents);
-use LC::Util qw(new_symbol unctrl);
+use LC::Stat qw(:ST);
+use LC::Util qw(new_symbol timestamp unctrl);
 use POSIX qw(:errno_h :sys_wait_h); # we need a few POSIX constants
 use sigtrap qw(die normal-signals); # so that ^C and such trigger END()
 
@@ -240,6 +241,16 @@ sub pconnect : method {
     return($self->{"_pipe"}[$fd]);
 }
 
+#
+# current working directory (at time of exec())
+#
+
+sub cwd : method {
+    my($self, $path) = @_;
+    $self->{"_cwd"} = $path if @_ > 1;
+    return($self->{"_cwd"});
+}
+
 #+++############################################################################
 #                                                                              #
 # public methods                                                               #
@@ -267,7 +278,7 @@ sub new : method {
 #
 
 sub start : method {
-    my($self) = @_;
+    my($self, $unsafe) = @_;
     my($pid, $tries, $path, $fd, $in, $in2, $out, $out2, $err, $err2, @cmd);
 
     #
@@ -427,15 +438,26 @@ sub start : method {
 		open(STDERR, ">&STDOUT")
 		    or die("$Tag: open(STDERR, '>&STDOUT'): $!\n");
 	    }
+	    # chdir
+	    $path = $self->cwd();
+	    if (defined($path)) {
+		chdir($path)
+		    or die("$Tag: chdir($path): $!\n");
+	    }
 	    # and eventually exec()...
 	    @cmd = $self->cmd();
 	    local $SIG{__WARN__} = sub {}; # because exec() can warn on error
 	    local $" = ", "; # to have a nicer error message
-	    exec(@cmd)
-		or die("$Tag: exec(@cmd): $!\n");
+	    if ($unsafe) {
+		# unsafe invocation potentially with shell expansion
+		exec(@cmd) or die("$Tag: exec(@cmd): $!\n");
+	    } else {
+		# safe invocation that never involves the shell
+		exec({ $cmd[0] } @cmd) or die("$Tag: exec(@cmd): $!\n");
+	    }
 	} elsif ($! == EAGAIN) {
 	    #
-	    # can't fork right now but let's try again...
+	    # cannot fork right now but let's try again...
 	    #
 	    select(undef, undef, undef, 0.01); # wait a little bit
 	    redo TRY_TO_FORK if $tries-- > 0;
@@ -455,7 +477,7 @@ sub start : method {
 
 #
 # stop a process object first gently (SIGINT) and then deadly (SIGKILL)
-# we can't guarantee that we will always get its status but we try hard...
+# we cannot guarantee that we will always get its status but we try hard...
 # (note: we currently ignore the errors that kill() could report)
 #
 
@@ -516,12 +538,12 @@ sub alive : method {
 #---############################################################################
 
 #
-# execute something with flexible options: timeout, stdin, stdout, stderr, pid
+# execute something with flexible options
 #
 
 sub execute ($%) {
     my($cmd, %opt) = @_;
-    my($timeout, $proc, $ref, $nfound, $limit, $done, $eof, $error, $res);
+    my($timeout, $proc, $ref, $nfound, $limit, $done, $eof, $error, $res, $pid);
     my($bufin, $bufout, $buferr, $rin, $rout, $win, $wout);
     my($fdin, $fdout, $fderr);
     local(*FHIN, *FHOUT, *FHERR);
@@ -539,8 +561,8 @@ sub execute ($%) {
     } else {
 	$timeout = 0;
     }
-    if (grep($_ !~ /^(pid|std(in|out|err))$/, keys(%opt))) {
-	($error) = grep($_ !~ /^(pid|std(in|out|err))$/, keys(%opt));
+    ($error) = grep($_ !~ /^(cb|cwd|pid|shell|std(in|out|err))$/, keys(%opt));
+    if (defined($error)) {
 	throw_error("invalid option", $error);
 	return();
     }
@@ -591,8 +613,12 @@ sub execute ($%) {
     } else {
 	$ref = "";
     }
-    $proc->start() or return();
-    $$ref = $proc->pid() if $ref;
+    if (defined($opt{cwd})) {
+	$proc->cwd($opt{cwd});
+    }
+    $proc->start($opt{shell}) or return();
+    $pid = $proc->pid();
+    $$ref = $pid if $ref;
     #
     # collect its output
     #
@@ -617,12 +643,26 @@ sub execute ($%) {
 	$fderr = -1;
     }
     $bufout = $buferr = "";
-    $limit = time + $timeout;
-    while (not $timeout or time < $limit) {
+    $limit = time() + $timeout;
+    while (not $timeout or time() < $limit) {
+	# start by executing the main callback
+	if ($opt{cb}) {
+	    $res = $opt{cb}->($pid);
+	    if ($res) {
+		$error = ["callback()", $res];
+		last;
+	    }
+	}
 	if (not $opt{stdin} and not $opt{stdout} and not $opt{stderr}) {
-	    # we don't play with std* so we only check if it's alive
+	    # we do not play with std* so we only check if it's alive
 	    if ($proc->alive()) {
-		sleep(1);
+		if ($opt{cb}) {
+		    # there is a callback so we should not loop too fast!
+		    sleep(1);
+		} else {
+		    # no callback, sleep only for 1/100 second
+		    select(undef, undef, undef, 0.01);
+		}
 		next;
 	    } else {
 		$eof = 1;
@@ -636,24 +676,6 @@ sub execute ($%) {
 	    unless ($proc->alive()) {
 		$eof = 1;
 		last;
-	    }
-	}
-	# stdin
-	if ($fdin >= 0 and vec($wout, $fdin, 1)) {
-	    if (length($bufin)) {
-		$done = syswrite(FHIN, $bufin, length($bufin));
-		unless (defined($done)) {
-		    $error = ["syswrite(in)", $!];
-		    last;
-		}
-		substr($bufin, 0, $done) = "" if $done;
-	    }
-	    unless (length($bufin)) {
-		unless (close(FHIN)) {
-		    $error = ["close(in)", $!];
-		    last;
-		}
-		vec($win, $fdin, 1) = 0;
 	    }
 	}
 	# stdout
@@ -688,6 +710,24 @@ sub execute ($%) {
 	    }
 	    vec($rin, $fderr, 1) = 0 unless $done;
 	}
+	# stdin
+	if ($fdin >= 0 and vec($wout, $fdin, 1)) {
+	    if (length($bufin)) {
+		$done = syswrite(FHIN, $bufin);
+		unless (defined($done)) {
+		    $error = ["syswrite(in)", $!];
+		    last;
+		}
+		substr($bufin, 0, $done) = "" if $done;
+	    }
+	    unless (length($bufin)) {
+		unless (close(FHIN)) {
+		    $error = ["close(in)", $!];
+		    last;
+		}
+		vec($win, $fdin, 1) = 0;
+	    }
+	}
 	# finished?
 	if (($fdin  >= 0 and vec($win, $fdin,  1)) or
 	    ($fdout >= 0 and vec($rin, $fdout, 1)) or
@@ -712,15 +752,15 @@ sub execute ($%) {
 	    # child seems OK at first glance
 	}
 	# we wait until the process really dies to get its status
-	while (not $timeout or time < $limit) {
+	while (not $timeout or time() < $limit) {
 	    last unless $proc->alive();
-	    sleep(1);
+	    select(undef, undef, undef, 0.01);
 	}
     } elsif ($error) {
 	# error while reading output
 	$proc->stop();
     } else {
-	# command didn't finish in time
+	# command did not finish in time
 	$proc->stop();
 	$error = ["timeout", $timeout];
     }
@@ -819,7 +859,7 @@ sub daemonise () {
 		# got status, we report it
 		exit($? >> 8);
 	    } else {
-		# didn't get status, return code is 1
+		# did not get status, return code is 1
 		exit(1);
 	    }
 	} else {
@@ -865,7 +905,7 @@ sub daemonise () {
 #---############################################################################
 
 #
-# check the contents of the pid file, maybe updating the action token
+# check the contents of the pid file, optionally updating the action token
 #
 
 sub pidcheck ($;$) {
@@ -884,7 +924,7 @@ sub pidcheck ($;$) {
 	# untaint pid and extra data
 	($pid, $extra) = ($1, $2);
     } else {
-	# remove the stale pid file
+	# remove pid file with invalid contents
 	unless (unlink($path)) {
 	    throw_error("unlink($path)", $!);
 	    return();
@@ -929,6 +969,63 @@ sub pidset ($) {
     return(SUCCESS);
 }
 
+#
+# check and set the pid file, optionally killing a stalled process
+#
+
+sub pidsetup ($;$) {
+    my($path, $maxage) = @_;
+    my($pid, @stat);
+
+    $pid = pidcheck($path);
+    if ($pid == -1) {
+        pidset($path) or return();
+	return("not running");
+    }
+    return(sprintf("already running as %d", $pid))
+	unless $maxage;
+    @stat = stat($path);
+    unless (@stat) {
+	throw_error("stat($path)", $!);
+	return();
+    }
+    return(sprintf("already running as %d (last update %s)",
+		   $pid, timestamp($stat[ST_MTIME])))
+	if $stat[ST_MTIME] > time() - $maxage;
+    # the running process may be stalled, we kill it
+    unless (kill("INT", $pid)) {
+	throw_error("kill(INT, $pid)", $!);
+	return();
+    }
+    sleep(1);
+    if (kill(0, $pid)) {
+	unless (kill("KILL", $pid)) {
+	    throw_error("kill(KILL, $pid)", $!);
+	    return();
+	}
+	sleep(1);
+    }
+    pidset($path) or return();
+    return(sprintf("not running anymore (killed process %d stalled since %s)",
+		   $pid, timestamp($stat[ST_MTIME])));
+}
+
+#
+# "touch" the pid file to indicate that we are still alive and kicking
+#
+
+sub pidtouch ($) {
+    my($path) = @_;
+    my($now);
+
+    $now = time();
+    unless (utime($now, $now, $path)) {
+	throw_error("utime($now, $now, $path)", $!);
+	return();
+    }
+    return(SUCCESS);
+}
+
 #+++############################################################################
 #                                                                              #
 # controlled wait and fork                                                     #
@@ -958,7 +1055,7 @@ sub cwait ($;$) {
 	    }
 	    # check if it is too slow to finish
 	    next unless $timeout;
-	    if ($_StartTime{$pid} + $timeout < time) {
+	    if ($_StartTime{$pid} + $timeout < time()) {
 		push(@slow, $pid);
 		next;
 	    }
@@ -993,7 +1090,7 @@ sub cfork ($;$) {
     }
     if ($pid) {
 	# father updates %_StartTime
-	$_StartTime{$pid} = time;
+	$_StartTime{$pid} = time();
     }
     return($pid);
 }
@@ -1054,43 +1151,96 @@ LC::Process - high-level object-oriented interface to manipulate processes
 
 =head1 SYNOPSIS
 
-    use LC::Process qw(output);
-    $data = output(qw(command arg1 arg2));
+  use LC::Process qw(output);
+  $data = output(qw(command arg1 arg2));
 
-    use LC::Process qw(execute);
-    $success = execute([qw(ls /foo)], "stderr" => \$bufferr);
+  use LC::Process qw(execute);
+  $success = execute([qw(ls /foo)], "stderr" => \$bufferr);
 
-    use LC::Process qw(pidcheck pidset);
-    $pidpath = "/var/run/foo.pid";
-    $pid = pidcheck($pidpath) or die("can't check $pidpath");
-    if ($pid == -1) {
-        # me alone
-        pidset($pidpath) or die("can't set $pidpath");
-    } else {
-        # already running
-        die("already running as $pid");
-    }
+  use LC::Process qw(pidcheck pidset);
+  $pidpath = "/var/run/foo.pid";
+  $pid = pidcheck($pidpath) or die("cannot check $pidpath");
+  if ($pid == -1) {
+      # me alone
+      pidset($pidpath) or die("cannot set $pidpath");
+  } else {
+      # already running
+      die("already running as $pid");
+  }
 
 =head1 DESCRIPTION
 
 This package provides a (currently undocumented) object-oriented
 interface to manipulate processes and documented high-level functions
-using the OO interface underneath:
+using this OO interface under the hood.
+
+Its main purpose is to provide better control on process execution and
+to avoid using the shell as much as possible.
+
+=head1 PROCESS EXECUTION
+
+The main function regarding process execution is C<execute>. It takes
+a mandatory first argument (which must be an array reference holding
+the command to execute and its arguments) and then optionally a list
+of named options. It executes the given command until the process
+finishes or an error occurs. The result is true on success, C<$?> will
+contain the child status when possible.
+
+It supports the following options:
 
 =over
 
-=item execute(WHAT[, OPTIONS...])
+=item C<timeout>
 
-execute the given command (that must be an array reference holding the
-command and its arguments) with several optional options:
-C<timeout> (maximum execution time in seconds, the command will be killed if
-too slow to finish),
-C<stdin> (data that will se sent to stdin),
-C<stdout> (reference to the scalar that will contain stdout),
-C<stderr> (reference to the scalar that will contain stderr
-or the string C<stdout> meaning that stdout and stderr should be merged),
-C<pid> (reference to the scalar that will contain the created process pid);
-the result is true on success, C<$?> will contain the child status when possible
+maximum execution time in seconds, the command will be killed if it
+takes too long to finish
+
+=item C<stdin>
+
+data that will se sent to stdin
+
+=item C<stdout>
+
+reference to the scalar that will contain stdout
+or a callback to be called each time there is new data on stdout
+
+=item C<stderr>
+
+reference to the scalar that will contain stderr
+or a callback to be called each time there is new data on stderr
+or the string C<stdout> meaning that stdout and stderr should be merged
+
+=item C<cwd>
+
+path of a directory to change to before executing the child process
+
+=item C<pid>
+
+reference to the scalar that will contain the created process pid
+
+=item C<shell>
+
+boolean specifying whether the shell should be called in case the list
+holding the command to execute has only one arguement (default: no),
+see the C<exec> documentation in perlfunc for background information
+
+=item C<cb>
+
+callback that will be called while the main process waits for the
+child to terminate
+
+=back
+
+The options that can receive a callback (C<stdout>, C<stderr> and
+C<cb>) expect a reference to some code that returns an error message
+in case of problem and a false value (e.g. C<undef>) on success. The
+code will be called with only one argument that will be respectively:
+the current stdout buffer, the current stderr buffer and the pid.
+
+In addition, this module exports the following functions which are
+simple wrappers around C<execute>:
+
+=over
 
 =item toutput(TIMEOUT, COMMAND[, ARGS...])
 
@@ -1111,10 +1261,24 @@ the result is true if there is no error, C<$?> is also set
 
 same as above but without a timeout
 
-=item daemonise()
+=back
 
-put the current process in the background and detach it from any
-terminal
+As an illustration, here is C<toutput>'s actual code:
+
+  sub toutput ($@) {
+      my($timeout, @args) = @_;
+      my($output);
+      $output = "";
+      execute(\@args, "timeout" => $timeout,
+  	    "stdout" => \$output, "stderr" => "stdout") or return();
+      return($output);
+  }
+
+=head1 PID FILE HANDLING
+
+This module also exports some functions to ease the handling of pid files:
+
+=over
 
 =item pidcheck(PATH[, ACTION])
 
@@ -1132,6 +1296,24 @@ action in the pid file is updated
 put the pid of the current process in the pid file identified by the
 given PATH, the file will be removed when the current process dies
 
+=item pidsetup(PATH[, MAXAGE])
+
+check the contents of the pid file, the state of the running process
+(if any, killing stalled processes if MAXAGE is given) and in the end
+set the pid file if no other processes are running; it returns a
+string indicating what has been found/done
+
+=item pidtouch(PATH)
+
+update the pid file's access and modification times to indicate that
+the current process is still healthy
+
+=back
+
+=head1 OTHER FUNCTIONS
+
+=over
+
 =item cfork(MAXPIDS[, TIMEOUT])
 
 perform a controlled C<fork>, blocking if we already have too many
@@ -1143,6 +1325,11 @@ perform a controlled C<wait>, waiting for enough children to die so
 that we have at most MAXPIDS children running, killing the ones
 running for more than TIMEOUT seconds; note: the children must have
 been created with C<cfork>
+
+=item daemonise()
+
+put the current process in the background and detach it from any
+terminal
 
 =item sendmail(BODY, RECIPIENT[, OPTIONS...])
 
@@ -1164,31 +1351,15 @@ C<header> (specify arbitrary extra header lines)
 
 =item * filehandle swapping (stdout <-> stderr) is not (yet?) supported
 
-=item * $p->fconnect(2, "") can be used to merge stdout and stderr
-
-=item * error reporting can't be bullet proof because a child may be in a state
-where it can't send its error message (e.g. stderr closed)
-
-=item * also, we can't know if a child nicely exited or if exec() failed;
-one should look to see if the stderr output starts with $Tag...
-
-=item * all children will be killed upon class destruction, this is a feature,
-use $p->mortal(0) if you want to let some survive...
-
-=item * the child may have started (or even finished!) when the father detects an
-error so a false value for $p->start does not mean that the child didn't
-run but only that we couldn't setup things correctly... fortunately, this
-can never happen when you don't play with file handles...
-
-=item * if the started process changes its uid, we may not be able to stop it
-anymore with $p->stop
+=item * error reporting cannot be bullet proof because a child may be
+in a state where it cannot send its error message (e.g. stderr closed)
 
 =item * if someone plays with the SIGCHLD signal handler, we may not
 get the proper status code
 
 =item * the pid file handling assumes that the program behaves
 normally (see the example above); if something else messes with the
-file, pidcheck() won't check the right process
+file, pidcheck() will maybe not check the right process
 
 =back
 
@@ -1198,24 +1369,51 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Process.pm,v 1.46 2008/09/05 12:00:12 cons Exp $
+$Id: Process.pm,v 1.58 2010/01/29 14:06:21 cons Exp $
 
 =head1 TODO
 
 =over
-
-=item * when a process is not mortal, it may stay as zombie when the program ends
-(could we do a local $SIG{CHLD} = "IGNORE"?)
-
-=item * handle stopped/continued processes (i.e. state updated)?
-
-=item * commands to add: start a process in the bg with/without
-timeout, read pipe with a timeout
-
-=item * pid file: unlink it in END only if it contains our pid?
 
 =item * what do we do with sendmail's output?
 
 =back
 
 =cut
+
+__END__
+
+# (here are internal notes that used to be in the man page)
+# 
+# =head1 NOTES
+# 
+# =over
+# 
+# =item * $p->fconnect(2, "") can be used to merge stdout and stderr
+# 
+# =item * also, we cannot know if a child nicely exited or if exec() failed;
+# one should look to see if the stderr output starts with $Tag...
+# 
+# =item * all children will be killed upon class destruction, this is a feature,
+# use $p->mortal(0) if you want to let some survive...
+# 
+# =item * the child may have started (or even finished!) when the father detects an
+# error so a false value for $p->start() does not mean that the child did not
+# run but only that we could not setup things correctly... fortunately, this
+# can never happen when you do not play with file handles...
+# 
+# =item * if the started process changes its uid, we may not be able to stop it
+# anymore with $p->stop()
+# 
+# =back
+# 
+# =head1 TODO
+# 
+# =over
+# 
+# =item * when a process is not mortal, it may stay as zombie when the program ends
+# (could we do a local $SIG{CHLD} = "IGNORE"?)
+# 
+# =item * handle stopped/continued processes (i.e. state updated)?
+# 
+# =back

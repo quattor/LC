@@ -14,7 +14,7 @@ package LC::Util;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.36 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.40 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -26,7 +26,7 @@ our(@ISA, @EXPORT, @EXPORT_OK);
 @EXPORT = qw();
 @EXPORT_OK = qw($ProgramName timestamp stamptime syslogtime timelocal timegm
     rectrl unctrl base64_encode base64_decode tablify new_symbol random_name
-    bytefmt past plural quantify);
+    bytefmt past plural quantify rpmvercmp);
 
 #
 # used modules
@@ -39,7 +39,7 @@ use LC::Exception qw(throw_error);
 #
 
 our(
-    $ProgramName,    # name (not path) of the running program
+    $ProgramName,         # name (not path) of the running program
 );
 
 $ProgramName = $0;
@@ -67,6 +67,7 @@ our(
     %_Plural,		  # exceptions for plural()
     $_SymbolCount,	  # counter used to create unique symbols
     @_ByteSuffix,	  # byte suffixes
+    $_RpmVerCmpRe,	  # split regexp for rpmvercmp()
 );
 
 @_MonthDays = qw(0 31 59 90 120 151 181 212 243 273 304 334);
@@ -97,18 +98,17 @@ our(
 
 %_Plural = (
     "child"  => "children",
+    "data"   => "data",
     "foot"   => "feet",
-    "half"   => "halves",
     "index"  => "indices",
-    "knife"  => "knives",
-    "leaf"   => "leaves",
-    "life"   => "lives",
     "man"    => "men",
     "tooth"  => "teeth",
     "woman"  => "women",
 );
 
 @_ByteSuffix = qw(B kB MB GB TB PB);
+
+$_RpmVerCmpRe = qr{(?:[^0-9a-zA-Z]+|(?<=[a-zA-Z])(?=[0-9])|(?<=[0-9])(?=[a-zA-Z]))};
 
 #+++############################################################################
 #                                                                              #
@@ -248,9 +248,15 @@ sub base64_decode ($) {
     my($length, $out, $offset, $chunk);
 
     _b64_init() unless @_B64_Enc;
-    throw_error("invalid string") unless $in =~ /^[A-Za-z0-9\+\/]*={0,2}$/;
+    unless ($in =~ /^[A-Za-z0-9\+\/]*={0,2}$/) {
+	throw_error("invalid string");
+	return();
+    }
     $length = length($in);
-    throw_error("invalid length", $length) unless $length % 4 == 0;
+    unless ($length % 4 == 0) {
+	throw_error("invalid length", $length);
+	return();
+    }
     $out = "";
     $offset = 0;
     while ($length >= $offset + 4) {
@@ -401,7 +407,7 @@ sub timelocal (@) {
     my(@args) = @_;
 
     unless (@args == 6) {
-	# note: we don't use a prototype of ($$$$$$) to allow calling us with
+	# note: we do not use a prototype of ($$$$$$) to allow calling us with
 	# a list like in timelocal(@foo)
 	throw_error("invalid number of arguments", scalar(@args));
 	return();
@@ -413,7 +419,7 @@ sub timegm (@) {
     my(@args) = @_;
 
     unless (@args == 6) {
-	# note: we don't use a prototype of ($$$$$$) to allow calling us with
+	# note: we do not use a prototype of ($$$$$$) to allow calling us with
 	# a list like in timegm(@foo)
 	throw_error("invalid number of arguments", scalar(@args));
 	return();
@@ -447,7 +453,7 @@ sub syslogtime ($;$) {
     if (defined($year)) {
 	$year -= 1900;
     } else {
-	@now = localtime(time);
+	@now = localtime(time());
 	$year = $now[5];
 	$year-- if $month > $now[4];
 	$year-- if $month == $now[4] and $2 > $now[3];
@@ -499,12 +505,16 @@ sub plural ($) {
     my($name) = @_;
 
     unless ($_Plural{$name}) {
-	if ($name =~ /(s|sh|x|ch)$/) {
+	if ($name =~ /(ch|s|sh|x|z)$/) {
 	    $_Plural{$name} = $name . "es";
+	} elsif ($name =~ /[bcdfghjklmnpqrstvwxz]y$/) {
+	    $_Plural{$name} = substr($name, 0, -1) . "ies";
+	} elsif ($name =~ /f$/) {
+	    $_Plural{$name} = substr($name, 0, -1) . "ves";
+	} elsif ($name =~ /fe$/) {
+	    $_Plural{$name} = substr($name, 0, -2) . "ves";
 	} elsif ($name =~ /[bcdfghjklmnpqrstvwxz]o$/) {
 	    $_Plural{$name} = $name . "es";
-	} elsif ($name =~ /y$/) {
-	    $_Plural{$name} = substr($name, 0, -1) . "ies";
 	} else {
 	    $_Plural{$name} = $name . "s";
 	}
@@ -535,6 +545,58 @@ sub bytefmt ($;$) {
     }
     return("$number $_ByteSuffix[$index]") if $number =~ /^\d+$/;
     return(sprintf("%.${precision}f %s", $number, $_ByteSuffix[$index]));
+}
+
+#+++############################################################################
+#                                                                              #
+# compare version strings using the same algorithm as rpm                      #
+#                                                                              #
+#---############################################################################
+
+sub rpmvercmp ($$) {
+    my($str1, $str2) = @_;
+    my(@seg1, @seg2, $ver1, $ver2, $cmp);
+
+    # easy comparison to see if versions are identical
+    return(0) if $str1 eq $str2;
+    # split into pure numerical or pure alphabetical segments (ASCII only)
+    @seg1 = split($_RpmVerCmpRe, $str1);
+    @seg2 = split($_RpmVerCmpRe, $str2);
+    # loop through each version segment of str1 and str2 and compare them
+    while (@seg1 and @seg2) {
+	$ver1 = shift(@seg1);
+	$ver2 = shift(@seg2);
+	if ($ver1 =~ /^[0-9]+$/) {
+	    if ($ver2 =~ /^[0-9]+$/) {
+		# throw away any leading zeros - it's a number, right?
+		$ver1 =~ s/^0+(?=\d)//;
+		$ver2 =~ s/^0+(?=\d)//;
+		$cmp = $ver1 <=> $ver2;
+		return($cmp) if $cmp;
+	    } else {
+		# take care of the case where the two version segments are
+		# different types: one numeric, the other alpha
+		# numeric segments are always newer than alpha segments
+		return(1);
+	    }
+	} else {
+	    if ($ver2 =~ /^[0-9]+$/) {
+		# take care of the case where the two version segments are
+		# different types: one numeric, the other alpha
+		# numeric segments are always newer than alpha segments
+		return(-1);
+	    } else {
+		$cmp = $ver1 cmp $ver2;
+		return($cmp) if $cmp;
+	    }
+	}
+    }
+    # this catches the case where all numeric and alpha segments have
+    # compared identically but the segment separating characters were
+    # different
+    return(0) if @seg1 == 0 and @seg2 == 0;
+    # whichever version still has characters left over wins
+    return(scalar(@seg1) ? 1 : -1);
 }
 
 #+++############################################################################
@@ -684,7 +746,7 @@ LC::Util - miscellaneous utilities
 =head1 SYNOPSIS
 
   use LC::Util qw($ProgramName timestamp);
-  print(timestamp(time), "\n");
+  print(timestamp(time()), "\n");
   die("Usage: $ProgramName path\n") unless @ARGV == 1;
   printf("data = %s\n", LC::Util::unctrl($data, "style" => "compact"));
 
@@ -743,6 +805,11 @@ but it should be good enough for most applications
 returns the original form of an escaped string returned by unctrl();
 C<X> is always the same as C<rectrl(unctrl(X))>; the options are the
 same as for unctrl()
+
+=item rpmvercmp(STRING1, STRING2)
+
+compares two version strings using the exact same algorithm as rpm's
+rpmvercmp(); returns -1, 0 or 1 like the C<cmp> operator does
 
 =item stamptime(STRING[, GMT])
 
@@ -805,6 +872,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Util.pm,v 1.36 2006/07/25 13:22:54 cons Exp $
+$Id: Util.pm,v 1.40 2009/10/21 07:58:42 cons Exp $
 
 =cut

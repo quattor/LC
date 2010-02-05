@@ -14,7 +14,7 @@ package LC::Exception;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.22 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.25 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -154,7 +154,7 @@ sub new : method {
 sub DESTROY {
     my($self) = @_;
 
-    return if $self->has_been_reported;
+    return if $self->has_been_reported();
     # oops, unreported exception being destroyed... report it!
     $self->report(INSIDE_DESTRUCTION);
 }
@@ -175,7 +175,7 @@ sub package : method {
 
     $frame = $self->{"_s"}[0];
     return() unless $frame;
-    return($frame->package);
+    return($frame->package());
 }
 
 sub filename : method {
@@ -184,7 +184,7 @@ sub filename : method {
 
     $frame = $self->{"_s"}[0];
     return() unless $frame;
-    return($frame->filename);
+    return($frame->filename());
 }
 
 sub line : method {
@@ -193,7 +193,7 @@ sub line : method {
 
     $frame = $self->{"_s"}[0];
     return() unless $frame;
-    return($frame->line);
+    return($frame->line());
 }
 
 sub text : method {
@@ -211,7 +211,7 @@ sub reason : method {
     my($self, $reason) = @_;
 
     if (@_ > 1) {
-	# always remove trailing spaces when storing (but only for strings)
+	# always remove extra spaces when storing (but only for strings)
 	if (ref($reason)) {
 	    if (UNIVERSAL::isa($reason, "LC::Exception")) {
 		# reason is an exception: do nothing
@@ -244,21 +244,41 @@ sub height : method {
 }
 
 #
+# stack trace formatting
+#
+
+sub stack_trace : method {
+    my($self, $prefix) = @_;
+    my($trace, $stack, $frame);
+
+    $prefix = "" unless defined($prefix);
+    $trace = "";
+    $stack = $self->stack();
+    foreach $frame (@$stack) {
+	next unless $frame;
+	$trace .= sprintf("%s%s called at %s line %s\n",
+			  $prefix, $frame->subroutine(),
+			  $frame->filename(), $frame->line());
+    }
+    return($trace);
+}
+
+#
 # other methods
 #
 
 sub _flags_test : method {
     my($self, $flag) = @_;
 
-    return() unless $self->flags;
-    return($self->flags & $flag);
+    return() unless $self->flags();
+    return($self->flags() & $flag);
 }
 
 sub _flags_set : method {
     my($self, $flag) = @_;
 
-    if ($self->flags) {
-	$self->flags($self->flags | $flag);
+    if ($self->flags()) {
+	$self->flags($self->flags() | $flag);
     } else {
 	$self->flags($flag);
     }
@@ -267,8 +287,8 @@ sub _flags_set : method {
 sub _flags_clear : method {
     my($self, $flag) = @_;
 
-    if ($self->flags) {
-	$self->flags($self->flags & ~$flag);
+    if ($self->flags()) {
+	$self->flags($self->flags() & ~$flag);
     } else {
 	# nothing to do!
     }
@@ -312,7 +332,7 @@ sub has_been_reported : method {
 	$self->_flags_clear(FLAG_REPORTED);
     }
     # also set it recursively if reason is an object
-    $reason = $self->reason;
+    $reason = $self->reason();
     $reason->has_been_reported($yes) if $reason and ref($reason);
     return($yes);
 }
@@ -349,8 +369,8 @@ sub format_short : method {
     my($self, $noprefix) = @_;
     my($reason, $string, $prefix);
 
-    $string = $self->text;
-    $reason = $self->reason;
+    $string = $self->text();
+    $reason = $self->reason();
     if (defined($reason)) {
 	$string .= ": ";
 	if (ref($reason)) {
@@ -363,7 +383,7 @@ sub format_short : method {
     }
     unless ($noprefix) {
 	# all lines are prefixed
-	$prefix = $self->is_error ? $ErrorPrefix : $WarningPrefix;
+	$prefix = $self->is_error() ? $ErrorPrefix : $WarningPrefix;
 	$string =~ s/^/$prefix /mg if length($prefix);
     }
     return($string);
@@ -380,9 +400,9 @@ sub format_long : method {
     my($self, $noprefix) = @_;
     my($reason, $string, $prefix, $where);
 
-    $string = $self->text;
-    $reason = $self->reason;
-    $where  = " at " . $self->filename . " line " . $self->line;
+    $string = $self->text();
+    $reason = $self->reason();
+    $where  = " at " . $self->filename() . " line " . $self->line();
     if (defined($reason)) {
 	$string .= ": ";
 	if (ref($reason)) {
@@ -398,7 +418,7 @@ sub format_long : method {
     }
     unless ($noprefix) {
 	# all lines are prefixed
-	$prefix = $self->is_error ? $ErrorPrefix : $WarningPrefix;
+	$prefix = $self->is_error() ? $ErrorPrefix : $WarningPrefix;
 	$string =~ s/^/$prefix /mg if length($prefix);
     }
     return($string);
@@ -433,20 +453,13 @@ sub format : method {
 
 sub report_standard : method {
     my($self, $uncaught) = @_;
-    my($stack, $depth, $frame);
 
-    if ($uncaught) {
-	print(STDERR "Uncaught exception!!! Calling stack is:\n");
-	$stack = $self->stack;
-	$depth = 0;
-	while ($frame = $stack->[$depth]) {
-	    print(STDERR "\t", $frame->subroutine, " called at ",
-		  $frame->filename, " line ", $frame->line, "\n");
-	    $depth++;
-	}
-    }
-    print(STDERR $self->format, "\n");
-    exit(1) if $self->is_error;
+    print(STDERR "Uncaught exception!!! ")
+	if $uncaught;
+    print(STDERR "Calling stack is:\n", $self->stack_trace("  "))
+	if $uncaught or ($ENV{"LC_FLAGS"} and $ENV{"LC_FLAGS"} =~ /\bstacktrace\b/);
+    print(STDERR $self->format(), "\n");
+    exit(1) if $self->is_error();
 }
 
 #
@@ -481,8 +494,8 @@ sub throw : method {
     my($ec, $stack, $height, $package);
 
     # initialisation
-    $stack  = $self->stack;
-    $height = $self->height;
+    $stack  = $self->stack();
+    $height = $self->height();
     # check the height
     if ($height) {
 	# already thrown, start one level upper (if not already out of stack)
@@ -492,13 +505,13 @@ sub throw : method {
 	$height = 1;
     }
     # scan stack for the first active exception context
-    if (@$stack == 1 and not $self->height) {
+    if (@$stack == 1 and not $self->height()) {
 	# special case for toplevel calls
 	$ec = LC::Exception::Context::active("main");
     } else {
 	# normal case
 	while ($stack->[$height]) {
-	    $package = $stack->[$height]->package;
+	    $package = $stack->[$height]->package();
 	    $ec = LC::Exception::Context::active($package);
 	    last if $ec;
 	    $height++;
@@ -526,7 +539,7 @@ sub _throw_exception ($$$$$) {
     $exception->is_error($error);
     $exception->is_mutable($mutable);
     # throw it
-    return($exception->throw);
+    return($exception->throw());
 }
 
 #
@@ -714,14 +727,14 @@ sub add_warning : method {
 sub report_exception : method {
     my($self, $exception) = @_;
 
-    $exception->report;
+    $exception->report();
     return();
 }
 
 sub store_exception : method {
     my($self, $exception) = @_;
 
-    if ($exception->is_error) {
+    if ($exception->is_error()) {
 	$self->error($exception);
     } else {
 	$self->add_warning($exception);
@@ -786,10 +799,10 @@ sub rethrow_error : method {
     my($self) = @_;
     my($error);
 
-    $error = $self->error;
+    $error = $self->error();
     return unless $error;
-    $self->clear_error;
-    $error->throw;
+    $self->clear_error();
+    $error->throw();
 }
 
 #
@@ -800,9 +813,9 @@ sub ignore_error : method {
     my($self) = @_;
     my($error);
 
-    $error = $self->error;
+    $error = $self->error();
     return unless $error;
-    $self->clear_error;
+    $self->clear_error();
     $error->has_been_reported(1);
 }
 
@@ -814,9 +827,9 @@ sub ignore_warnings : method {
     my($self) = @_;
     my(@warnings, $warning);
 
-    @warnings = $self->warnings;
+    @warnings = $self->warnings();
     return unless @warnings;
-    $self->clear_warnings;
+    $self->clear_warnings();
     foreach $warning (@warnings) {
 	$warning->has_been_reported(1);
     }
@@ -830,13 +843,13 @@ sub handle : method {
     my($self, $exception) = @_;
     my($handler);
 
-    if ($exception->is_error) {
-	$handler = $self->error_handler;
+    if ($exception->is_error()) {
+	$handler = $self->error_handler();
     } else {
-	$handler = $self->warning_handler;
+	$handler = $self->warning_handler();
     }
-    # zero handler means don't catch the exceptions at this level
-    return($exception->throw) unless $handler;
+    # zero handler means do not catch the exceptions at this level
+    return($exception->throw()) unless $handler;
     # call the user supplied handler
     return($handler->($self, $exception));
 }
@@ -855,9 +868,9 @@ LC::Exception::Context - exception contexts manipulation
 
 =head2 caller
 
-    $ec = LC::Exception::Context->new->will_store_errors;
+    $ec = LC::Exception::Context->new()->will_store_errors();
     ...
-    foo(@args) or $ec->error->report;
+    foo(@args) or $ec->error()->report();
 
 =head2 callee
 
@@ -892,8 +905,8 @@ exception occured: C<$!>, C<$@>, another exception...
 
 Exception querying:
 
-	printf "oops at %s line %d\n", $e->filename, $e->line;
-	die $e->text if $e->is_error and not $e->has_been_reported;
+	printf("oops at %s line %d\n", $e->filename(), $e->line());
+	die($e->text()) if $e->is_error() and not $e->has_been_reported();
 
 =head2 Exception Formatting (C<format> method)
 
@@ -971,12 +984,12 @@ Examples:
 
 	throw_warning("skipping $foo");
 
-	$e = LC::Exception->new;
+	$e = LC::Exception->new();
 	$e->text("whatever");
 	$e->reason($another_exception);
 	$e->is_error(1);
 	$e->is_mutable(1);
-	$e->throw;
+	$e->throw();
 
 =head2 Exception Contexts
 
@@ -989,24 +1002,24 @@ passed higher in the calling stack. Methods are available to change
 this behaviour:
 
 	# store any error caught for further analysis
-	$ec->will_store_errors;
+	$ec->will_store_errors();
 	# store any warning caught for further analysis
-	$ec->will_store_warnings;
+	$ec->will_store_warnings();
 	# store any exception caught for further analysis
-	$ec->will_store_all;
+	$ec->will_store_all();
 
 	# report any error caught immediately
-	$ec->will_report_errors;
+	$ec->will_report_errors();
 	# report any warning caught immediately
-	$ec->will_report_warnings;
+	$ec->will_report_warnings();
 	# report any exception caught immediately
-	$ec->will_report_all;
+	$ec->will_report_all();
 
 	# example
-	$ec = LC::Exception::Context->new->will_store_all;
+	$ec = LC::Exception::Context->new()->will_store_all();
 	...
-	foreach $warning ($ec->warnings) { ... }
-	$ec->clear_warnings;
+	foreach $warning ($ec->warnings()) { ... }
+	$ec->clear_warnings();
 
 An exception context can call user supplied hooks when an exception is
 caught. They can be registered with the C<error_handler> and
@@ -1017,27 +1030,27 @@ C<warning_handler> methods.
 =head2 caller filtering exceptions
 
     use LC::Exception qw(throw_error);
-    $ec = LC::Exception::Context->new;
+    $ec = LC::Exception::Context->new();
     $ec->error_handler(\&my_handler);
     ...
     unless (foo(@args)) {
-	if ($ec->error) {
+	if ($ec->error()) {
             # we report this error higher
-	    throw_error("foo(@args)", $ec->error);
+	    throw_error("foo(@args)", $ec->error());
 	    return();
 	}
     }
     ...
     sub my_handler {
 	my($ec, $e) = @_;
-	if ($e->reason =~ /whatever/) {
+	if ($e->reason() =~ /whatever/) {
 	    # ignore this error
 	    $e->has_been_reported(1);
 	    return();
-	} elsif ($e->reason =~ /not_so_important/) {
+	} elsif ($e->reason() =~ /not_so_important/) {
 	    # turn this error into a warning and throw it higher
 	    $e->is_warning(1);
-	    $e->throw;
+	    $e->throw();
 	    return(1);
 	} else {
 	    # otherwise store it
@@ -1068,7 +1081,7 @@ constant or by returning something useful to the caller. If you return
 a list that can be empty, you should return the list reference on
 success so that it's easy to detect failures.
 
-If you don't use an exception context that stores errors in your
+If you do not use an exception context that stores errors in your
 module, throwing an exception should look like:
 
     unless ($ok) {
@@ -1082,13 +1095,13 @@ look like:
 
     # simply pass the error higher with no added value
     unless ($ok) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
 
     # or add some information
     unless ($ok) {
-	throw_error("foo(@args)", $_EC->error);
+	throw_error("foo(@args)", $_EC->error());
 	return();
     }
 
@@ -1101,6 +1114,9 @@ look like:
 If it contains the word C<longexcept>, the exception formatter will be
 the long one instead of the short one by default.
 
+If it contains the word C<stacktrace>, a stack trace will be printed
+before reporting an exception.
+
 =back
 
 =head1 AUTHOR
@@ -1109,13 +1125,11 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Exception.pm,v 1.22 2006/01/16 10:47:12 cons Exp $
+$Id: Exception.pm,v 1.25 2009/10/06 09:48:20 cons Exp $
 
 =head1 TODO
 
 =over
-
-=item * option/environment to print the stack?
 
 =item * document that one can use $__EC__ locally in a package
 

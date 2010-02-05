@@ -14,7 +14,7 @@ package LC::Option;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.39 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.49 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -24,13 +24,13 @@ use Exporter;
 our(@ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
 BEGIN {
     # since we do need to import the OT_ constants in the sub-packages below,
-    # we have to define then at compilation time here, hence this BEGIN block...
+    # we have to define them at compilation time here, hence this BEGIN block...
     @ISA = qw(Exporter);
     @EXPORT = qw();
     @EXPORT_OK = qw();
     %EXPORT_TAGS = (
-       "OT" => [ qw(OT_COUNTER OT_BOOLEAN OT_STRING OT_NUMBER OT_INTEGER
-		    OT_REGEXP OT_PATH OT_DATE OT_IPV4) ],
+       "OT" => [ map("OT_$_",
+		     qw(COUNTER BOOLEAN STRING NUMBER INTEGER REGEXP PATH DATE IPV4)) ],
     );
     Exporter::export_tags();
 }
@@ -48,8 +48,6 @@ use LC::Util qw(timestamp stamptime);
 
 our(
     $_EC,		# exception context
-    $_Now,		# current time
-    %_Name2Type,	# type name to type number
 );
 
 #+++############################################################################
@@ -58,15 +56,15 @@ our(
 #                                                                              #
 #---############################################################################
 
-use constant OT_COUNTER => 0; # incremented counter
-use constant OT_BOOLEAN => 1; # boolean value
-use constant OT_STRING  => 2; # any string
-use constant OT_NUMBER  => 3; # any number
-use constant OT_INTEGER => 4; # integer number
-use constant OT_REGEXP  => 5; # valid Perl regular expression
-use constant OT_PATH    => 6; # _existing_ path (as verified by -e)
-use constant OT_DATE    => 7; # date (i.e. day with optional time)
-use constant OT_IPV4    => 8; # IPv4 address in numerical dotted notation
+use constant OT_COUNTER => "COUNTER"; # incremented counter
+use constant OT_BOOLEAN => "BOOLEAN"; # boolean value
+use constant OT_STRING  => "STRING";  # any string
+use constant OT_NUMBER  => "NUMBER";  # any number
+use constant OT_INTEGER => "INTEGER"; # integer number
+use constant OT_REGEXP  => "REGEXP";  # valid Perl regular expression
+use constant OT_PATH    => "PATH";    # _existing_ path (as verified by -e)
+use constant OT_DATE    => "DATE";    # date (i.e. day with optional time)
+use constant OT_IPV4    => "IPV4";    # IPv4 address in numerical dotted notation
 
 #+++############################################################################
 #                                                                              #
@@ -80,9 +78,9 @@ use constant OT_IPV4    => 8; # IPv4 address in numerical dotted notation
 
 sub _check_date_value ($) {
     my($value) = @_;
-    my($test, $time);
+    my($now, $test, $time);
 
-    $_Now = time() unless defined($_Now);
+    $now = time();
     if ($value =~ /^\d{4}\/\d{2}\/\d{2}$/) {
 	# day only
 	$test = "$value-00:00:00";
@@ -96,13 +94,13 @@ sub _check_date_value ($) {
 	return($value);
     } elsif ($value =~ /^([\+\-]?0\@)?(\d{2}\:\d{2}\:\d{2})$/) {
 	# today at given time
-	$test = substr(timestamp($_Now), 0, 10) . "-$2";
+	$test = substr(timestamp($now), 0, 10) . "-$2";
 	$time = stamptime($test);
 	return() unless defined($time);
 	return($test);
-    } elsif ($value =~ /^([\+\-]?)(\d+)(\@(\d{2}\:\d{2}\:\d{2}))?$/) {
+    } elsif ($value =~ /^([\+\-]?)(\d{1,3})(\@(\d{2}\:\d{2}\:\d{2}))?$/) {
 	# day offset with maybe time
-	$test = $_Now;
+	$test = $now;
 	if ($1 eq "+") {
 	    $test += $2 * 86400;
 	} else {
@@ -117,15 +115,19 @@ sub _check_date_value ($) {
 	}
 	return() unless defined($time);
 	return($test);
-    } elsif ($value =~ /^([\+\-]?)((?=\d|\.\d)\d*(\.\d*)?([Ee][\+\-]?\d+)?)$/) {
+    } elsif ($value =~ /^([\+\-]?)(\.\d+|\d{1,3}(\.\d+)?)$/) {
 	# fractional day offset
-	$test = $_Now;
+	$test = $now;
 	if ($1 eq "+") {
 	    $test += $2 * 86400.0;
 	} else {
 	    $test -= $2 * 86400.0;
 	}
 	return(timestamp($test));
+    } elsif ($value =~ /^\d{9,10}$/ and $value <= 2147483647) {
+	# number of seconds since the epoch
+	# (we only accept "Sat Mar  3 10:46:40 1973" to "Tue Jan 19 04:14:07 2038")
+	return(timestamp($value));
     } else {
 	throw_error("unknown date format");
 	return();
@@ -144,7 +146,7 @@ sub _check_value_type ($$) {
     # an option item can always be undefined
     return(SUCCESS) unless defined($value);
     # normal case
-    if ($type == OT_BOOLEAN) {
+    if ($type eq OT_BOOLEAN) {
 	if ($value =~ /^(1|on|yes|true|enabled?)$/i) {
 	    $_[0] = 1; # given value modified!
 	} elsif ($value =~ /^(0|off|no|false|disabled?)$/i) {
@@ -153,19 +155,19 @@ sub _check_value_type ($$) {
 	    throw_error("invalid boolean value", $value);
 	    return();
 	}
-    } elsif ($type == OT_STRING) {
+    } elsif ($type eq OT_STRING) {
 	# always ok!
-    } elsif ($type == OT_NUMBER) {
+    } elsif ($type eq OT_NUMBER) {
 	unless ($value =~ /^[\+\-]?(?=\d|\.\d)\d*(\.\d*)?([Ee][\+\-]?\d+)?$/) {
 	    throw_error("invalid number value", $value);
 	    return();
 	}
-    } elsif ($type == OT_INTEGER or $type == OT_COUNTER) {
+    } elsif ($type eq OT_INTEGER or $type eq OT_COUNTER) {
 	unless ($value =~ /^[\-\+]?\d+$/) {
 	    throw_error("invalid integer value", $value);
 	    return();
 	}
-    } elsif ($type == OT_REGEXP) {
+    } elsif ($type eq OT_REGEXP) {
 	unless (length($value)) {
 	    throw_error("invalid empty regexp");
 	    return();
@@ -175,20 +177,20 @@ sub _check_value_type ($$) {
 	    throw_error("invalid regexp value", $value);
 	    return();
 	}
-    } elsif ($type == OT_PATH) {
+    } elsif ($type eq OT_PATH) {
 	unless (-e $value) {
 	    throw_error("invalid existing path value", $value);
 	    return();
 	}
-    } elsif ($type == OT_DATE) {
+    } elsif ($type eq OT_DATE) {
 	$date = _check_date_value($value);
 	if (defined($date)) {
 	    $_[0] = $date; # given value modified!
 	} else {
-	    throw_error("invalid date value ($value)", $_EC->error);
+	    throw_error("invalid date value ($value)", $_EC->error());
 	    return();
 	}
-    } elsif ($type == OT_IPV4) {
+    } elsif ($type eq OT_IPV4) {
 	$octet = "(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])";
 	unless ($value =~ /^$octet(?:\.$octet){3}$/o) {
 	    throw_error("invalid ipv4 address value", $value);
@@ -213,6 +215,21 @@ use warnings;
 
 use LC::Exception qw(throw_error SUCCESS);
 use LC::Option qw(:OT);
+
+#
+# populate the %_KnownType hash
+#
+
+our(%_KnownType);
+
+{
+    my($name, $value);
+
+    foreach $name (@{$EXPORT_TAGS{OT}}) {
+	$value = eval($name);
+	$_KnownType{$value}++;
+    }
+}
 
 #
 # object contructor
@@ -245,6 +262,7 @@ sub new : method {
 
 sub name : method {
     my($self) = @_;
+
     return($self->{"_name"});
 }
 
@@ -254,8 +272,9 @@ sub name : method {
 
 sub letter : method {
     my($self, $letter) = @_;
+
     return($self->{"_letter"}) unless @_ > 1;
-    unless ($letter =~ /^\w$/) {
+    if (defined($letter) and not $letter =~ /^\w$/) {
 	throw_error("invalid option letter", $letter);
 	return();
     }
@@ -269,8 +288,21 @@ sub letter : method {
 
 sub mandatory : method {
     my($self, $flag) = @_;
+
     return($self->{"_mandy"}) unless @_ > 1;
     $self->{"_mandy"} = $flag;
+    return(SUCCESS);
+}
+
+#
+# get or set the hidden flag
+#
+
+sub hidden : method {
+    my($self, $flag) = @_;
+
+    return($self->{"_hidden"}) unless @_ > 1;
+    $self->{"_hidden"} = $flag;
     return(SUCCESS);
 }
 
@@ -280,8 +312,9 @@ sub mandatory : method {
 
 sub type : method {
     my($self, $type) = @_;
+
     return($self->{"_type"}) unless @_ > 1;
-    unless ($type =~ /^[0-8]$/) {
+    unless ($_KnownType{$type}) {
 	throw_error("invalid option type", $type);
 	return();
     }
@@ -295,6 +328,7 @@ sub type : method {
 
 sub description : method {
     my($self, $description) = @_;
+
     return($self->{"_desc"}) unless @_ > 1;
     $self->{"_desc"} = $description;
     return(SUCCESS);
@@ -308,9 +342,9 @@ sub description : method {
 
 sub binding : method {
     my($self, $binding) = @_;
+
     return($self->{"_bind"}) unless @_ > 1;
-    unless ($binding and ref($binding) and
-	    ref($binding) =~ /^(CODE|SCALAR)$/) {
+    unless ($binding and ref($binding) =~ /^(CODE|SCALAR)$/) {
 	throw_error("invalid option binding", $binding);
 	return();
     }
@@ -326,10 +360,10 @@ sub value : method {
     my($self, $value) = @_;
     my($binding);
 
-    $binding = $self->binding;
+    $binding = $self->binding();
     if (@_ > 1) {
 	# set the value
-        LC::Option::_check_value_type($value, $self->type) or return();
+        LC::Option::_check_value_type($value, $self->type()) or return();
 	if ($binding and ref($binding) eq "CODE") {
 	    return($binding->($value));
 	} elsif ($binding and ref($binding) eq "SCALAR") {
@@ -347,7 +381,7 @@ sub value : method {
     } else {
 	$value = $self->{"_value"};
 	# special case for counters: initially they have 0 and not undef
-	$value = 0 if $self->type == OT_COUNTER and not defined($value);
+	$value = 0 if $self->type() eq OT_COUNTER and not defined($value);
     }
     return($value);
 }
@@ -359,11 +393,11 @@ sub value : method {
 sub increment : method {
     my($self) = @_;
 
-    unless ($self->type == OT_COUNTER) {
-	throw_error("cannot be incremented", $self->name);
+    unless ($self->type() eq OT_COUNTER) {
+	throw_error("cannot be incremented", $self->name());
 	return();
     }
-    $self->value($self->value + 1) or return();
+    $self->value($self->value() + 1) or return();
     return(SUCCESS);
 }
 
@@ -387,12 +421,12 @@ use LC::Option qw(:OT);
 
 sub new : method {
     my($class) = @_;
-    my(%data);
-    %data = (
-	     "_items" => {},
-	     );
-    bless(\%data, $class);
-    return(\%data);
+    my($set);
+
+    $set = { "_items" => {} };
+    bless($set, $class);
+    $set->add_hidden();    
+    return($set);
 }
 
 #
@@ -401,18 +435,9 @@ sub new : method {
 
 sub synopsis : method {
     my($self, $synopsis) = @_;
+
     $self->{"_synop"} = $synopsis if @_ > 1;
     return($self->{"_synop"});
-}
-
-#
-# get or set the default flag (true if usage should print default values)
-#
-
-sub default : method {
-    my($self, $default) = @_;
-    $self->{"_def"} = $default if @_ > 1;
-    return($self->{"_def"});
 }
 
 #
@@ -421,6 +446,7 @@ sub default : method {
 
 sub names : method {
     my($self) = @_;
+
     return(keys(%{ $self->{"_items"} }));
 }
 
@@ -430,6 +456,7 @@ sub names : method {
 
 sub items : method {
     my($self) = @_;
+
     return(values(%{ $self->{"_items"} }));
 }
 
@@ -463,7 +490,7 @@ sub value : method {
 	return($value);
     }
     # get
-    return($item->value);
+    return($item->value());
 }
 
 #
@@ -478,13 +505,38 @@ sub add : method {
 	throw_error("not an option item", $item);
 	return();
     }
-    $name = $item->name;
+    $name = $item->name();
     if ($self->item($name)) {
 	throw_error("option item already defined", $name);
 	return();
     }
     $self->item($name, $item);
     return($self);
+}
+
+#
+# add all internal/default/hidden items to the set
+#
+
+sub add_hidden : method {
+    my($self) = @_;
+    my($item);
+
+    $item = LC::Option::Item->new("SHOW-HIDDEN");
+    $item->description("show hidden options");
+    $item->hidden(1);
+    $self->add($item);    
+
+    $item = LC::Option::Item->new("SHOW-VALUES");
+    $item->description("show option values");
+    $item->hidden(1);
+    $self->add($item);    
+
+    $item = LC::Option::Item->new("UNDEF");
+    $item->description("undefine this option");
+    $item->hidden(1);
+    $item->type("STRING");
+    $self->add($item);    
 }
 
 #
@@ -496,55 +548,39 @@ sub usage : method {
     my($name, $usage, $item, $what, $info, @options, $maxlen, $left, $right);
 
     $usage = "Usage: ";
-    if ($self->synopsis) {
-	$usage .= $self->synopsis;
+    if ($self->synopsis()) {
+	$usage .= $self->synopsis();
 	$usage =~ s/\s*$/\n/;
     } else {
 	$usage .= $0;
-	$usage .= " [OPTIONS] [--]" if $self->names;
+	$usage .= " [OPTIONS] [--]" if $self->names();
 	$usage .= " [ARGUMENTS]\n";
     }
     $maxlen = -1;
-    foreach $name (sort($self->names)) {
+    foreach $name (sort($self->names())) {
 	$item = $self->item($name);
+	next if $item->hidden() and not $self->value("SHOW-HIDDEN");
 	$left = "";
-	$what = $item->letter;
+	$what = $item->letter();
 	if (defined($what)) {
 	    $left .= "-$what,";
 	} else {
 	    $left .= "   ";
 	}
-	$what = $item->type;
-	if ($what == OT_COUNTER) {
+	$what = $item->type();
+	if ($what eq OT_COUNTER) {
 	    $info = "";
-	} elsif ($what == OT_BOOLEAN) {
-	    $info = "=BOOLEAN";
-	} elsif ($what == OT_STRING) {
-	    $info = "=STRING";
-	} elsif ($what == OT_NUMBER) {
-	    $info = "=NUMBER";
-	} elsif ($what == OT_INTEGER) {
-	    $info = "=INTEGER";
-	} elsif ($what == OT_REGEXP) {
-	    $info = "=REGEXP";
-	} elsif ($what == OT_PATH) {
-	    $info = "=PATH";
-	} elsif ($what == OT_DATE) {
-	    $info = "=DATE";
-	} elsif ($what == OT_IPV4) {
-	    $info = "=IPV4";
 	} else {
-	    throw_error("invalid option type", $what);
-	    return();
+	    $info = "=$what";
 	}
-	$info .= "!" if $item->mandatory;
+	$info .= "!" if $item->mandatory();
 	$left .= " --$name$info";
 	$info = length($left);
 	$maxlen = $info if $info > $maxlen;
-	$right = $item->description;
-	if ($self->default) {
-	    $info = $item->value;
-	    if ($what == OT_BOOLEAN) {
+	$right = $item->description();
+	if ($self->value("SHOW-VALUES")) {
+	    $info = $item->value();
+	    if ($what eq OT_BOOLEAN) {
 		$right .= $info ? " [true]" : " [false]";
 	    } else {
 		$info = "<undef>" unless defined($info);
@@ -570,8 +606,8 @@ sub parse_array : method {
     #
     # collect the letter shortcuts in %item
     #
-    foreach $item ($self->items) {
-	$letter = $item->letter;
+    foreach $item ($self->items()) {
+	$letter = $item->letter();
 	next unless defined($letter);
 	if ($item{$letter}) {
 	    throw_error("option letter already defined", $letter);
@@ -609,7 +645,7 @@ sub parse_array : method {
 	    #
 	    foreach $letter (split(//, substr($name, 0, -1))) {
 		$item = $item{$letter};
-		next if $item and $item->type == OT_COUNTER;
+		next if $item and $item->type() eq OT_COUNTER;
 		throw_error("unknown option", $arg);
 		return();
 	    }
@@ -621,19 +657,19 @@ sub parse_array : method {
 	    }
 	    # all letters are known, process the first ones
 	    foreach $letter (split(//, substr($name, 0, -1))) {
-		$item{$letter}->increment or return();
+		$item{$letter}->increment() or return();
 	    }
 	    # then process the last one below (as normal processing)
 	}
 	#
 	# option fully identified, good
 	#
-	if ($item->type == OT_COUNTER) {
+	if ($item->type() eq OT_COUNTER) {
 	    if (defined($value)) {
-		throw_error("option takes no value", $item->name);
+		throw_error("option takes no value", $item->name());
 		return();
 	    }
-	    $item->increment or return();
+	    $item->increment() or return();
 	} else {
 	    unless (defined($value)) {
 		# try to get value from next arg
@@ -643,14 +679,23 @@ sub parse_array : method {
 		}
 	    }
 	    unless (defined($value)) {
-		throw_error("option requires a value", $item->name);
+		throw_error("option requires a value", $item->name());
 		return();
 	    }
-	    $seen{$item->name}++;
-	    if ($seen{$item->name} == 2) {
-		# same option used more than once
-		throw_warning("option used multiple times", $item->name)
-		    unless $item->binding and ref($item->binding) eq "CODE";
+	    if ($item->name() eq "UNDEF") {
+		$item = $self->item($value);
+		unless ($item) {
+		    throw_error("unknown option", $value);
+		    return();
+		}
+		$value = undef;
+	    } else {
+		$seen{$item->name()}++;
+		if ($seen{$item->name()} == 2) {
+		    # same option used more than once
+		    throw_warning("option used multiple times", $item->name())
+			unless $item->binding() and ref($item->binding()) eq "CODE";
+		}
 	    }
 	    $item->value($value) or return();
 	}
@@ -659,7 +704,7 @@ sub parse_array : method {
 }
 
 #
-# parse a hash (this doesn't support letter shortcuts (yet))
+# parse a hash (this does not support letter shortcuts (yet))
 #
 
 sub parse_hash : method {
@@ -707,7 +752,7 @@ sub parse_file : method {
 	    throw_error("unknown option in $path", $name);
 	    return();
 	}
-	if ($override or not defined($item->value)) {
+	if ($override or not defined($item->value())) {
 	    $item->value($value) or return();
 	}
     }
@@ -734,7 +779,7 @@ sub handle_help : method {
     $date = $1
 	if $date =~ /^date:\s+(.+?)\s*$/i;
     # print usage + information and exit
-    print($self->usage);
+    print($self->usage());
     printf("(this is %s version %s released on %s)\n", $name, $version, $date);
     exit(0);
 }
@@ -746,12 +791,13 @@ sub handle_help : method {
 
 sub handle_manual : method {
     my($self) = @_;
-    my($path);
+    my($command, $path);
 
     return(SUCCESS) unless $self->value("manual");
+    $command = -t STDOUT ? "perldoc" : "podselect";
     $path = $1 if $0 =~ /^(.+)$/ and -f $1;
-    unless ($path and system("perldoc", $path) == 0) {
-	print("Please run: perldoc <the-full-path-of-this-program>\n");
+    unless ($path and system($command, $path) == 0) {
+	print("Please run: $command <the-full-path-of-this-program>\n");
     }
     exit(0);
 }
@@ -766,7 +812,7 @@ sub handle_config : method {
 
     # check -cfgfile
     $item = $self->item("cfgfile");
-    $path = $item->value
+    $path = $item->value()
 	if $item;
     unless (defined($path)) {
 	# check name
@@ -776,7 +822,7 @@ sub handle_config : method {
 	}
 	# check -cfgdir
 	$item = $self->item("cfgdir");
-	$path = $item->value
+	$path = $item->value()
 	    if $item;
 	unless (defined($path)) {
 	    # default directory is cfg.d in the same directory as $0
@@ -803,10 +849,10 @@ sub handle_mandatory : method {
     my($self) = @_;
     my($item);
 
-    foreach $item ($self->items) {
-	next unless $item->mandatory;
-	next if defined($item->value);
-	throw_error("mandatory option not set", $item->name);
+    foreach $item ($self->items()) {
+	next unless $item->mandatory();
+	next if defined($item->value());
+	throw_error("mandatory option not set", $item->name());
 	return();
     }
     return(SUCCESS);
@@ -822,19 +868,7 @@ package LC::Option;
 use strict;
 use warnings;
 
-$_EC = LC::Exception::Context->new->will_store_errors();
-
-%_Name2Type = (
-    "counter" => OT_COUNTER,
-    "boolean" => OT_BOOLEAN,
-    "string"  => OT_STRING,
-    "number"  => OT_NUMBER,
-    "integer" => OT_INTEGER,
-    "regexp"  => OT_REGEXP,
-    "path"    => OT_PATH,
-    "date"    => OT_DATE,
-    "ipv4"    => OT_IPV4,
-);
+$_EC = LC::Exception::Context->new()->will_store_errors();
 
 #
 # define an option set with a table (list of triplet refs)
@@ -842,15 +876,19 @@ $_EC = LC::Exception::Context->new->will_store_errors();
 
 sub define ($@) {
     my($synopsis, @defs) = @_;
-    my($def, $set, $name, $letter, $type, $binding, $descro, $item, $mandy);
+    my($def, $set, $name, $letter, $type, $flags, $binding, $descro, $item);
 
-    $set = LC::Option::Set->new;
+    $set = LC::Option::Set->new();
     $set->synopsis($synopsis) if $synopsis;
     foreach $def (@defs) {
 	($name, $binding, $descro) = @$def;
-	$mandy = $name =~ s/\!$//;
-	if ($name =~ /^(.+):(counter|boolean|string|number|integer|regexp|path|date|ipv4)$/) {
-	    ($name, $type) = ($1, $_Name2Type{$2});
+	if ($name =~ /^(.+?)([\!\#]+)$/) {
+	    ($name, $flags) = ($1, $2);
+	} else {
+	    $flags = undef;
+	}
+	if ($name =~ /^(.+):(\w+)$/) {
+	    ($name, $type) = ($1, uc($2));
 	} else {
 	    $type = undef;
 	}
@@ -860,44 +898,45 @@ sub define ($@) {
 	    $letter = undef;
 	}
 	$item = LC::Option::Item->new($name);
-	$item->mandatory($mandy);
 	unless ($item) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
+	$item->mandatory(1) if $flags and $flags =~ /\!/;
+	$item->hidden(1)    if $flags and $flags =~ /\#/;
 	if (defined($type)) {
 	    unless ($item->type($type)) {
-		$_EC->rethrow_error;
+		$_EC->rethrow_error();
 		return();
 	    }
 	}
 	if (defined($letter)) {
 	    unless ($item->letter($letter)) {
-		$_EC->rethrow_error;
+		$_EC->rethrow_error();
 		return();
 	    }
 	}
 	if (defined($descro)) {
 	    unless ($item->description($descro)) {
-		$_EC->rethrow_error;
+		$_EC->rethrow_error();
 		return();
 	    }
 	}
 	if (defined($binding)) {
 	    if (ref($binding)) {
 		unless ($item->binding($binding)) {
-		    $_EC->rethrow_error;
+		    $_EC->rethrow_error();
 		    return();
 		}
 	    } else {
 		unless ($item->value($binding)) {
-		    $_EC->rethrow_error;
+		    $_EC->rethrow_error();
 		    return();
 		}
 	    }
 	}
 	unless ($set->add($item)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	};
     }
@@ -912,8 +951,8 @@ sub parse_array ($$) {
     my($os, $array) = @_;
 
     unless ($os->parse_array($array)) {
-	print($os->usage);
-	$_EC->rethrow_error;
+	print($os->usage());
+	$_EC->rethrow_error();
 	return();
     }
     return(SUCCESS);
@@ -927,8 +966,8 @@ sub parse_argv ($) {
     my($os) = @_;
 
     unless ($os->parse_array(\@ARGV)) {
-	print($os->usage);
-	$_EC->rethrow_error;
+	print($os->usage());
+	$_EC->rethrow_error();
 	return();
     }
     return(SUCCESS);
@@ -942,7 +981,7 @@ sub parse_file ($$) {
     my($os, $path) = @_;
 
     unless ($os->parse_file($path)) {
-	throw_error("failed to parse $path", $_EC->error);
+	throw_error("failed to parse $path", $_EC->error());
 	return();
     }
     return(SUCCESS);
@@ -958,20 +997,21 @@ LC::Option - module to ease options handling
 
 =head1 SYNOPSIS
 
-    use LC::Option;
-    $OS = LC::Option::define("$0 [OPTIONS] [--] [path...]",
-        [ "help=h",          undef,  "show some help" ],
-        [ "mac",             undef,  "report mac time" ],
-        [ "mtime=m",         undef,  "report mtime" ],
-        [ "limit=l:integer",     0,  "limit lines printed" ],
-        [ "file:boolean",        1,  "consider plain files" ],
-        [ "directory:boolean",   0,  "consider directories" ],
-    );
-    LC::Option::parse_argv($OS);
-    $OS->handle_help($0, q$Revision: 1.39 $, q$Date: 2009/04/23 06:59:02 $ );
-    if ($OS->value("mac")) {
-        ...
-    }
+  use LC::Option;
+  $OS = LC::Option::define("$0 [OPTIONS] [--] [path...]",
+      [ "help=h",          undef,  "show some help" ],
+      [ "mac",             undef,  "report mac time" ],
+      [ "mtime=m",         undef,  "report mtime" ],
+      [ "limit=l:integer",     0,  "limit lines printed" ],
+      [ "file:boolean",        1,  "consider plain files" ],
+      [ "directory:boolean",   0,  "consider directories" ],
+  );
+  LC::Option::parse_argv($OS);
+  $OS->handle_help($0, q$Revision: 1.49 $,
+                       q$Date: 2009/11/18 11:17:50 $ );
+  if ($OS->value("mac")) {
+      ...
+  }
 
 =head1 DESCRIPTION
 
@@ -1048,13 +1088,7 @@ Some high-level routines are also provided (but not exported):
 
 =item LC::Option::define(STRING, OPTIONSREF)
 
-define a new option set; the STRING contains the synopsis to print
-when formatting the usage message; OPTIONSREF is a reference to a list
-of triplets: option specification (a string containing the option name,
-optionally followed by "=" and the equivalent option letter, optionally
-followed by ":" and the option type, optionally followed by "!" to
-indicate a mandatory option), value (the default value or a reference
-to a variable that will hold the value) and description
+define a new option set (see below for a more complete description)
 
 =item LC::Option::parse_argv(OPTIONSET)
 
@@ -1082,6 +1116,27 @@ requires an option named "manual" in the option set
 check that all the mandatory options are indeed defined
 
 =back
+
+=head1 OPTION SET DEFINITION
+
+The easiest way to define an option set is to use the
+C<LC::Option::define> function.
+
+Its first argument is the first line that will be reported by the
+C<usage> method. See the example above for a typical use.
+
+Its second argument is a reference to a list of triplets: option
+specification, value and description.
+
+The option specification is a string containing the option name,
+optionally followed by "=" and the equivalent option letter,
+optionally followed by ":" and the option type, optionally followed by
+"!" to indicate a mandatory option, optionally followed by "#" to
+indicate a hidden option.
+
+The option value is the default value or a reference to a variable
+that will hold the value or a reference to a subroutine that will be
+called to get or set the value.
 
 =head1 FORMATS
 
@@ -1111,6 +1166,8 @@ Here are the supported date formats:
 
 =item * fractional offsets: -2.5 (i.e. 2 days 12 hours ago)
 
+=item * Unix time (seconds since the epoch): 1245328352
+
 =back
 
 =head1 AUTHOR
@@ -1119,7 +1176,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Option.pm,v 1.39 2009/04/23 06:59:02 cons Exp $
+$Id: Option.pm,v 1.49 2009/11/18 11:17:50 cons Exp $
 
 =head1 TODO
 
@@ -1132,8 +1189,6 @@ $Id: Option.pm,v 1.39 2009/04/23 06:59:02 cons Exp $
 =item * add more types such as existing file|dir|host...
 
 =item * handle lists like -foo=bar,gag?
-
-=item * allow the user to give a value of `undef'
 
 =item * it is probably a bad idea to have two parse_array functions...
 

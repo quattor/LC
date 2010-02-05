@@ -14,7 +14,7 @@ package LC::ISO88591;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.19 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.20 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -375,7 +375,7 @@ sub capitalise ($) {
     return($string);
 }
 
-# define all the tables at load time so that we don't bother afterwards
+# define all the tables at load time so that we do not bother afterwards
 _init();
 
 1;
@@ -464,6 +464,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: ISO88591.pm,v 1.19 2006/12/18 15:08:47 cons Exp $
+$Id: ISO88591.pm,v 1.20 2009/10/06 09:45:35 cons Exp $
 
 =cut

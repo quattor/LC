@@ -14,7 +14,7 @@ package LC::Sysinfo;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.40 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.41 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -86,13 +86,13 @@ sub uname () {
 
 #
 # enhanced uname fields:
-#   os->name	  distinctive/meaningful OS name
-#   os->version	  version that can be numerically compared
+#   os->name()	  	distinctive/meaningful OS name
+#   os->version()	version that can be numerically compared
 #
 
 sub os () {
     unless ($_Os) {
-	my($name, $vers) = (uname->sysname, uname->release);
+	my($name, $vers) = (uname->sysname(), uname->release());
 	if ($name eq "SunOS") {
 	    # make $vers really numerical by removing the extra dots
 	    if ($vers =~ s/^5\./2./) {
@@ -118,13 +118,13 @@ sub os () {
 	    # A.09.01 or B.10.20
 	    $vers =~ s/^[AB]\.0*//;
 	} elsif ($name eq "AIX") {
-	    $vers = uname->version . ".$vers";
+	    $vers = uname->version() . ".$vers";
 	    # one could also use oslevel(1) here to get more information...
 	} elsif ($name eq "OSF1") {
 	    # V4.0
 	    $vers =~ s/^V//;
 	    # add the version number: V4.0 878 -> 4.00878
-	    $vers = sprintf("%s%04d", $vers, uname->version);
+	    $vers = sprintf("%s%04d", $vers, uname->version());
 	} elsif ($name =~ /^IRIX\d+$/) {
 	    # name can be IRIX or IRIX64...
 	    $name = "IRIX";
@@ -189,7 +189,7 @@ sub _get_meminfo ($) {
 sub memory () {
     my($osname, @data);
 
-    $osname = os->name;
+    $osname = os->name();
     unless ($osname eq "Linux") {
 	throw_error("unsupported system", $osname);
 	return();
@@ -207,7 +207,7 @@ sub memory () {
 sub swap () {
     my($osname, @data);
 
-    $osname = os->name;
+    $osname = os->name();
     unless ($osname eq "Linux") {
 	throw_error("unsupported system", $osname);
 	return();
@@ -245,7 +245,7 @@ sub swap () {
 sub uptime () {
     my($osname, $path, $info);
 
-    $osname = os->name;
+    $osname = os->name();
     unless ($osname eq "Linux") {
 	throw_error("unsupported system", $osname);
 	return();
@@ -267,7 +267,7 @@ sub uptime () {
 sub loadavg () {
     my($osname, $path, $info, $obj);
 
-    $osname = os->name;
+    $osname = os->name();
     unless ($osname eq "Linux") {
 	throw_error("unsupported system", $osname);
 	return();
@@ -320,7 +320,7 @@ sub df () {
     my($osname, $output, @lines, $name, $type, $path, $size, $used, $dev, %df);
     local($_);
 
-    $osname = os->name;
+    $osname = os->name();
     unless (@_Df) {
 	if ($osname eq "HP-UX") {
 	    @_Df = ("/usr/bin/bdf");
@@ -449,11 +449,11 @@ sub _print_df () {
     $df = df() or return;
     printf("%-8s %-22s %-4s %-20s %-9s %-8s %s\n",
         qw(Device Filesystem Type Mounted_on Kbytes Used Usage));
-    foreach $path (sort($df->paths)) {
+    foreach $path (sort($df->paths())) {
 	$fs = $df->filesystem($path);
-	$pct = ($fs->size ? $fs->used/$fs->size*100 : 0);
-	printf("%08X %-22s %-4s %-20s %-9d %-8d %5.2f%%\n", $fs->dev,
-	       $fs->name, $fs->type, $fs->path, $fs->size, $fs->used, $pct);
+	$pct = ($fs->size() ? $fs->used()/$fs->size()*100 : 0);
+	printf("%08X %-22s %-4s %-20s %-9d %-8d %5.2f%%\n", $fs->dev(),
+	       $fs->name(), $fs->type(), $fs->path(), $fs->size(), $fs->used(), $pct);
     }
 }
 
@@ -471,7 +471,7 @@ sub du ($) {
     my($path) = @_;
     my($osname, $output, $size, $line, @warnings);
 
-    $osname = os->name;
+    $osname = os->name();
     unless (@_Du) {
 	@_Du = (-x "/usr/bin/du" ? "/usr/bin/du" : "/bin/du");
 	push(@_Du, "-k") unless $osname eq "HP-UX";
@@ -626,7 +626,7 @@ sub _ps_bsd () {
 sub ps () {
     my($osname);
 
-    $osname = os->name;
+    $osname = os->name();
     return(_ps_bsd()) if $osname eq "SunOS" or $osname eq "Linux";
     return(_ps_sysv());
 }
@@ -669,10 +669,10 @@ sub _print_ps () {
 
     $ps = ps() or return;
     printf("%-8s %5s %5s %s\n", qw(USER PID PPID COMMAND));
-    foreach $pid (sort({$a <=> $b} $ps->pids)) {
+    foreach $pid (sort({$a <=> $b} $ps->pids())) {
 	$proc = $ps->process($pid);
-	printf("%-8s %5d %5d %s\n", $proc->name, $pid, $proc->ppid,
-	       $proc->command);
+	printf("%-8s %5d %5d %s\n", $proc->name(), $pid, $proc->ppid(),
+	       $proc->command());
     }
 }
 
@@ -688,13 +688,13 @@ sub pids ($) {
     if (length($regexp)) {
 	# real regexp filtering
 	@pids = ();
-	foreach $proc ($ps->processes) {
-	    next unless $proc->command =~ /$regexp/;
-	    push(@pids, $proc->pid);
+	foreach $proc ($ps->processes()) {
+	    next unless $proc->command() =~ /$regexp/;
+	    push(@pids, $proc->pid());
 	}
     } else {
 	# all pids
-	@pids = $ps->pids;
+	@pids = $ps->pids();
     }
     return(\@pids);
 }
@@ -826,7 +826,7 @@ sub _netintf_netstat () {
 sub netintf () {
     my($osname);
 
-    $osname = os->name;
+    $osname = os->name();
     return(_netintf_ifconfig()) if $osname eq "Linux";
     return(_netintf_netstat());
 }
@@ -874,15 +874,15 @@ sub _print_netintf () {
     $netintf = netintf() or return;
     printf("%-6s %-5s %-15s %-14s %-14s %s\n",
 	   qw(Name Mtu Address Network Mask RX/TX/CO));
-    foreach $name (sort($netintf->names)) {
+    foreach $name (sort($netintf->names())) {
 	$intf = $netintf->intf($name);
 	printf("%-6s %-5d %-15s %-14s %-14s %s\n",
-	       $name, $intf->mtu,
-	       $intf->addr, $intf->net,
-	       (defined($intf->mask) ? $intf->mask : "??"),
-	       (defined($intf->recv) ? $intf->recv : "??") . "/" .
-	       (defined($intf->sent) ? $intf->sent : "??") . "/" .
-	       (defined($intf->coll) ? $intf->coll : "??"));
+	       $name, $intf->mtu(),
+	       $intf->addr(), $intf->net(),
+	       (defined($intf->mask()) ? $intf->mask() : "??"),
+	       (defined($intf->recv()) ? $intf->recv() : "??") . "/" .
+	       (defined($intf->sent()) ? $intf->sent() : "??") . "/" .
+	       (defined($intf->coll()) ? $intf->coll() : "??"));
     }
 }
 
@@ -970,7 +970,7 @@ sub netstat () {
 	next if $cinfo->[0] eq "raw";
 	next if $cinfo->[1] eq "*" and $cinfo->[2] eq "*" and
 	        $cinfo->[3] eq "*" and $cinfo->[4] eq "*";
-	# UDP connections don't have a state
+	# UDP connections do not have a state
 	$cinfo->[5] = "" if $cinfo->[0] eq "udp";
 	# remove duplicates (e.g. on AIX with tcp4 vs. tcp)
 	next if $seen{join(" ", @$cinfo)}++;
@@ -1020,10 +1020,10 @@ sub _print_netstat () {
 
     $netstat = netstat() or return;
     printf("%-6s %-22s %-22s %s\n", qw(Proto Local Remote State));
-    foreach $conn ($netstat->connections) {
-	$local  = $conn->local_addr  . ":" . $conn->local_port;
-	$remote = $conn->remote_addr . ":" . $conn->remote_port;
-	printf("%-6s %-22s %-22s %s\n", $conn->proto, $local, $remote, $conn->state);
+    foreach $conn ($netstat->connections()) {
+	$local  = $conn->local_addr()  . ":" . $conn->local_port();
+	$remote = $conn->remote_addr() . ":" . $conn->remote_port();
+	printf("%-6s %-22s %-22s %s\n", $conn->proto(), $local, $remote, $conn->state());
     }
 }
 
@@ -1036,22 +1036,22 @@ sub _print_netstat () {
 unless (defined(caller)) {
     my($obj);
 
-    LC::Exception::Context->new->will_report_all;
+    LC::Exception::Context->new()->will_report_all();
     $obj = uname();
-    printf("uname: %s %s %s %s %s\n\n", $obj->sysname, $obj->nodename,
-	   $obj->release, $obj->version, $obj->machine);
+    printf("uname: %s %s %s %s %s\n\n", $obj->sysname(), $obj->nodename(),
+	   $obj->release(), $obj->version(), $obj->machine());
     $obj = os();
-    printf("os: %s %s\n\n", $obj->name, $obj->version);
+    printf("os: %s %s\n\n", $obj->name(), $obj->version());
     $obj = memory();
     printf("memory: %d kB used out of %d (%4.2f%%)\n\n",
-	   $obj->used, $obj->size, ($obj->used / $obj->size * 100.0));
+	   $obj->used(), $obj->size(), ($obj->used() / $obj->size() * 100.0));
     $obj = swap();
     printf("swap: %d kB used out of %d (%4.2f%%)\n\n",
-	   $obj->used, $obj->size, ($obj->used / $obj->size * 100.0));
+	   $obj->used(), $obj->size(), ($obj->used() / $obj->size() * 100.0));
     printf("uptime: %d seconds\n\n", uptime());
     $obj = loadavg();
     printf("load averages: %g %g %g\n\n",
-	   $obj->last1, $obj->last5, $obj->last15);
+	   $obj->last1(), $obj->last5(), $obj->last15());
     _print_df();
     print("\n");
     printf("du /bin = %d\n\n", du("/bin"));
@@ -1073,8 +1073,8 @@ LC::Sysinfo - easy access to system-specific information
 =head1 SYNOPSIS
 
     use LC::Sysinfo qw(ps);
-    foreach $proc (ps->processes) {
-        printf("%d %s\n", $proc->pid, $proc->command);
+    foreach $proc (ps()->processes()) {
+        printf("%d %s\n", $proc->pid(), $proc->command());
     }
 
 =head1 DESCRIPTION
@@ -1148,7 +1148,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Sysinfo.pm,v 1.40 2006/01/17 13:51:06 cons Exp $
+$Id: Sysinfo.pm,v 1.41 2009/10/06 10:05:37 cons Exp $
 
 =head1 TODO
 

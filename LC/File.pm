@@ -15,7 +15,7 @@ use 5.006;
 use strict;
 use warnings;
 use POSIX qw(O_WRONLY);
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.20 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.22 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -177,9 +177,21 @@ sub file_contents ($;$) {
 
 sub differ ($$) {
     my($path1, $path2) = @_;
-    my($differ, $done1, $done2, $data1, $data2, $length1, $length2, $common);
+    my($differ, @stat1, @stat2, $done1, $done2, $data1, $data2, $length1, $length2, $common);
     local(*FH1, *FH2);
     
+    # first try with stat()
+    @stat1 = stat($path1);
+    unless (@stat1) {
+	throw_error("stat($path1)", $!);
+	return();
+    }
+    @stat2 = stat($path2);
+    unless (@stat2) {
+	throw_error("stat($path2)", $!);
+	return();
+    }
+    return(1) if $stat1[ST_SIZE] != $stat2[ST_SIZE];
     # init
     unless (open(FH1, "<" . path_for_open($path1))) {
 	throw_error("open($path1)", $!);
@@ -264,7 +276,7 @@ sub remove ($) {
     my($path) = @_;
     my($slash, $busy);
 
-    return(SUCCESS) unless -l $path or -e _; # ok if it doesn't exist
+    return(SUCCESS) unless -l $path or -e _; # ok if it does not exist
     # we detect directories here because Perl's unlink could work on directories
     # which is a very bad idea, see unlink's documentation for more information
     if (-d _) {
@@ -310,7 +322,7 @@ sub destroy ($) {
     my($name);
     local(*DH);
 
-    return(SUCCESS) unless -l $path or -e _; # ok if it doesn't exist
+    return(SUCCESS) unless -l $path or -e _; # ok if it does not exist
     # destroy a directory
     if (-d _) {
         unless (opendir(DH, $path)) {
@@ -467,7 +479,7 @@ sub copy ($$;%) {
 #+++############################################################################
 #                                                                              #
 # move a file, following the /bin/mv algorithm: rename or copy+unlink          #
-# (except that the second argument can't be a directory)                       #
+# (except that the second argument cannot be a directory)                      #
 #                                                                              #
 #---############################################################################
 
@@ -526,7 +538,7 @@ sub makedir ($;$) {
 #                                                                              #
 # restricted version of Perl's glob(): does not fork any shell and does not    #
 # trigger automounters but only handles a single * as full directory wildcard  #
-# and doesn't follow symbolic links                                            #
+# and does not follow symbolic links                                           #
 #                                                                              #
 #---############################################################################
 
@@ -554,7 +566,7 @@ sub rglob ($) {
     }
     # read the directory
     if ($before) {
-	# it's not an error if the directory doesn't exist
+	# it's not an error if the directory does not exist
 	return([]) unless -d $before;
 	$list = directory_contents($before);
     } else {
@@ -842,7 +854,7 @@ return true on success
 =item rglob(PATTERN)
 
 restricted globing function understanding only a single C<*> in the
-pattern (on the other hand it doesn't fork, trigger automounters or
+pattern (on the other hand it does not fork, trigger automounters or
 follow symlinks), return a reference to the result; return false on failure
 
 =item unlock(PATH)
@@ -857,6 +869,6 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: File.pm,v 1.20 2009/05/07 08:13:13 cons Exp $
+$Id: File.pm,v 1.22 2009/12/04 15:17:19 cons Exp $
 
 =cut

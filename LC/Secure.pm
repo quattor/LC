@@ -14,7 +14,7 @@ package LC::Secure;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.10 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.11 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -42,7 +42,7 @@ our(
     %_CwdToId,		# path to dev:ino table for getcwd()
 );
 
-$_EC = LC::Exception::Context->new->will_store_errors;
+$_EC = LC::Exception::Context->new()->will_store_errors();
 
 #
 # forward declarations
@@ -119,9 +119,9 @@ sub ch1dir ($) {
     my($name) = @_;
     my(@stat1, @stat2);
 
-    # easy case: don't change directory!
+    # easy case: do not change directory!
     return(SUCCESS) if $name eq ".";
-    # the name shouldn't contain a / (except for the root directory!)
+    # the name should not contain a / (except for the root directory!)
     if ($name ne "/" and $name =~ /\//) {
 	throw_error("illegal name", $name);
 	return();
@@ -172,7 +172,7 @@ sub chdir ($) {
 	}
 	# try to change one directory level
 	unless (ch1dir($name)) {
-	    throw_error("chdir($cwd)", $_EC->error);
+	    throw_error("chdir($cwd)", $_EC->error());
 	    return();
 	}
     }
@@ -214,7 +214,7 @@ sub _chdir_parent ($) {
     }
     # change to the relevant "parent" directory
     unless (LC::Secure::chdir($dir)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     # finally return the name, it can be false, test it with defined()!
@@ -239,7 +239,7 @@ sub _entry_name ($$) {
     while (defined($name = readdir(DIR))) {
 	next if $name =~ /^\.\.?$/;
 	unless (@stat = lstat("$path/$name")) {
-	    # "lateral" directories may be protected so don't give up
+	    # "lateral" directories may be protected so do not give up
 	    throw_warning("lstat($path/$name)", $!);
 	    next;
 	}
@@ -296,7 +296,7 @@ sub getcwd () {
 	# find the entry name
 	$entry = _entry_name($path, $oid);
 	unless (defined($entry)) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
         unshift(@path, $entry);
@@ -309,7 +309,7 @@ sub getcwd () {
 
 #
 # go back to a remembered cwd, checking where we really end up
-# simply use chdir() if you didn't remember the id with getcwd()
+# simply use chdir() if you did not remember the id with getcwd()
 #
 
 sub setcwd ($) {
@@ -321,7 +321,7 @@ sub setcwd ($) {
 	return();
     }
     unless (LC::Secure::chdir($path)) {
-        throw_error("chdir($path)", $_EC->error);
+        throw_error("chdir($path)", $_EC->error());
         return();
     }
     unless (@stat = lstat(".")) {
@@ -365,7 +365,7 @@ sub _destroy_directory_contents ($$) {
     $parent =~ s/\/+$//;
     # chdir inside
     unless (ch1dir($name)) {
-	throw_error("chdir($path)", $_EC->error);
+	throw_error("chdir($path)", $_EC->error());
 	return();
     }
     # destroy the directory contents
@@ -376,7 +376,7 @@ sub _destroy_directory_contents ($$) {
     while (defined($entry = readdir(DIR))) {
 	next if $entry =~ /^\.\.?$/;
 	unless (_destroy($entry, "$parent/$entry")) {
-	    $_EC->rethrow_error;
+	    $_EC->rethrow_error();
 	    return();
 	}
     }
@@ -386,7 +386,7 @@ sub _destroy_directory_contents ($$) {
     }
     # chdir up
     unless (ch1dir("..")) {
-	throw_error("chdir($parent/..)", $_EC->error);
+	throw_error("chdir($parent/..)", $_EC->error());
 	return();
     }
 }
@@ -440,12 +440,12 @@ sub destroy ($) {
     # check
     $name = _chdir_parent($path);
     unless (defined($name)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     # destroy
     unless (_destroy($name, $path)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     # success
@@ -463,7 +463,7 @@ sub unlink ($) {
     # check
     $name = _chdir_parent($path);
     unless (defined($name)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     # unlink
@@ -486,7 +486,7 @@ sub rmdir ($) {
     # check
     $name = _chdir_parent($path);
     unless (defined($name)) {
-	$_EC->rethrow_error;
+	$_EC->rethrow_error();
 	return();
     }
     # rmdir
@@ -522,8 +522,8 @@ directories such as C</tmp>: an attacker could put a symlink in the
 middle of the path and we may end up acting on the wrong file...
 
 We workaround this problem by changing directory and then running the
-system command (e.g. C<unlink()>) on a path which doesn't contain a /
-and therefore can't be perverted by a symlink. Use C<getcwd()> and
+system command (e.g. C<unlink()>) on a path which does not contain a /
+and therefore cannot be perverted by a symlink. Use C<getcwd()> and
 then C<setcwd()> if you want to preserve your working directory.
 
 =over
@@ -554,7 +554,7 @@ Change directory and check that we end up where C<getcwd()> remembered.
 
 =item forgetcwd(PATH)
 
-Forget where PATH is to free memory, C<setcwd()> can't be used anymore
+Forget where PATH is to free memory, C<setcwd()> cannot be used anymore
 for this path.
 
 =item unlink(PATH)
@@ -577,7 +577,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Secure.pm,v 1.10 2006/04/04 12:13:58 cons Exp $
+$Id: Secure.pm,v 1.11 2009/10/06 09:41:23 cons Exp $
 
 =head1 TODO
 
