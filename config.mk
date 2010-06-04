@@ -1,7 +1,7 @@
 COMP=perl-LC
 NAME=$(COMP)
 DESCR=LC Perl Modules
-VERSION=1.1.6
+VERSION=1.1.7
 RELEASE=1
 AUTHOR=Lionel Cons <Lionel.Cons@cern.ch>
 MAINTAINER=Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>, Marco Emilio Poleggi <Marco.Poleggi@cern.ch>
@@ -17,4 +17,4 @@ MANSECT=3
 
 MAN3DIR=$(QTTR_MAN)/man$(MANSECT)
 
-DATE=05/02/10 18:42
+DATE=04/06/10 16:53

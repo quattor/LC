@@ -14,7 +14,7 @@ package LC::Process;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.58 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.59 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -396,6 +396,11 @@ sub start : method {
 	    #
 	    # child
 	    #
+	    # we die() this way to avoid triggering the END blocks of the father
+	    local $SIG{__DIE__} = sub {
+		print(STDERR $_[0]);
+		POSIX::_exit(1);
+	    };
 	    # prepare stdin
 	    if ($in) {
 		$fd = fileno($in);
@@ -1369,7 +1374,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Process.pm,v 1.58 2010/01/29 14:06:21 cons Exp $
+$Id: Process.pm,v 1.59 2010/06/04 14:42:27 cons Exp $
 
 =head1 TODO
 

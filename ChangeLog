@@ -1,3 +1,13 @@
+2010-06-04  Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>
+
+	* Release: 1.1.7
+	- Fix a bug on LC::Process
+	
+	If a command failed, the forked process could remove temporary resources (locks)
+	owned by the father.
+	
+	Thanks to Lionel for the fast fix.
+
 2010-02-05  Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>
 
 	* Release: 1.1.6
