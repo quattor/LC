@@ -1,3 +1,8 @@
+2010-12-08  Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>
+
+	* Release: 1.1.8
+	- Change the instalation path Quattor's global QTTR_PERLLIB
+
 2010-06-04  Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>
 
 	* Release: 1.1.7

@@ -1,13 +1,13 @@
 COMP=perl-LC
 NAME=$(COMP)
 DESCR=LC Perl Modules
-VERSION=1.1.7
+VERSION=1.1.8
 RELEASE=1
 AUTHOR=Lionel Cons <Lionel.Cons@cern.ch>
 MAINTAINER=Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>, Marco Emilio Poleggi <Marco.Poleggi@cern.ch>
 
 ifeq ($(QTTR_OS),Linux)
-QTTR_PERLLIB=/usr/lib/perl5/site_perl
+#QTTR_PERLLIB=/usr/lib/perl5/site_perl
 ifeq ($(_rpmver),4.2.3)
 PROVIDES=Provides: edg-perl-LC
 endif
@@ -17,4 +17,4 @@ MANSECT=3
 
 MAN3DIR=$(QTTR_MAN)/man$(MANSECT)
 
-DATE=04/06/10 16:53
+DATE=08/12/10 17:56
