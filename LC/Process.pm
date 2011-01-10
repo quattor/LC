@@ -14,7 +14,7 @@ package LC::Process;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.59 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.60 $ =~ /(\d+)\.(\d+)/);
 
 #
 # export control
@@ -251,6 +251,16 @@ sub cwd : method {
     return($self->{"_cwd"});
 }
 
+#
+# grace period to use when killing
+#
+
+sub grace : method {
+    my($self, $path) = @_;
+    $self->{"_grace"} = $path if @_ > 1;
+    return($self->{"_grace"});
+}
+
 #+++############################################################################
 #                                                                              #
 # public methods                                                               #
@@ -269,6 +279,7 @@ sub new : method {
     $self->state(IS_NEW);
     $self->debug($Debug);
     $self->mortal(1);
+    $self->grace(1);
     $self->_trace("created with '@cmd'");
     return($self);
 }
@@ -494,8 +505,8 @@ sub stop : method {
     $self->_trace("will be killed");
     $pid = $self->pid();
     kill("INT", $pid) or return;
-    # leave him some time to die in peace: 1s
-    $timeout = 100;
+    # leave him some time to die in peace
+    $timeout = int($self->grace() * 100);
     while ($timeout--) {
 	select(undef, undef, undef, 0.01);
 	return unless $self->alive();
@@ -566,7 +577,7 @@ sub execute ($%) {
     } else {
 	$timeout = 0;
     }
-    ($error) = grep($_ !~ /^(cb|cwd|pid|shell|std(in|out|err))$/, keys(%opt));
+    ($error) = grep($_ !~ /^(cb|cwd|grace|pid|shell|std(in|out|err))$/, keys(%opt));
     if (defined($error)) {
 	throw_error("invalid option", $error);
 	return();
@@ -575,6 +586,9 @@ sub execute ($%) {
     # create and start the process
     #
     $proc = LC::Process->new(@$cmd);
+    if (defined($opt{grace})) {
+	$proc->grace($opt{grace});
+    }
     if (defined($opt{stdin})) {
 	# use the supplied input
 	$proc->pconnect(0, \*FHIN);
@@ -1223,6 +1237,12 @@ path of a directory to change to before executing the child process
 
 reference to the scalar that will contain the created process pid
 
+=item C<grace>
+
+number specifying the grace period (in seconds, can be fractional):
+this is the time given to processes being killed to cleanup, between
+the gentle SIGINT and the brutal SIGKILL
+
 =item C<shell>
 
 boolean specifying whether the shell should be called in case the list
@@ -1374,7 +1394,7 @@ Lionel Cons C<http://cern.ch/lionel.cons>, (C) CERN C<http://www.cern.ch>
 
 =head1 VERSION
 
-$Id: Process.pm,v 1.59 2010/06/04 14:42:27 cons Exp $
+$Id: Process.pm,v 1.60 2011/01/05 08:49:28 cons Exp $
 
 =head1 TODO
 
