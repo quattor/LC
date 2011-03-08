@@ -468,6 +468,9 @@ sub start : method {
 		# unsafe invocation potentially with shell expansion
 		exec(@cmd) or die("$Tag: exec(@cmd): $!\n");
 	    } else {
+		if (scalar(@cmd) == 1) {
+		    @cmd = split(/\s/, $cmd[0]);
+		}
 		# safe invocation that never involves the shell
 		exec({ $cmd[0] } @cmd) or die("$Tag: exec(@cmd): $!\n");
 	    }

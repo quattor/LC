@@ -1,3 +1,11 @@
+2011-03-08  Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>
+
+	* Release: 1.1.10
+	- Split single-string command lines in LC::Process.
+
+	This reduces the modules affected by the breakage introduced
+	in 1.1.6, while avoiding subshells just the same.
+
 2011-01-10  Luis Fernando Muñoz Mejías <Luis.Fernando.Munoz.Mejias@cern.ch>
 
 	* Release: 1.1.9
