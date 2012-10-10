@@ -6,7 +6,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.quattor.cfg.module</groupId>
-  <artifactId>LC</artifactId>
+  <artifactId>perl-LC</artifactId>
 
   <packaging>pom</packaging>
   <version>1.10.1-SNAPSHOT</version>
@@ -191,12 +191,6 @@
 	<configuration>
 	  <summary>Common Application Framework for Quattor Perl applications</summary>
 	  <name>${project.artifactId}</name>
-	  <provides>
-	    <provide>edg-caf-perl</provide>
-	  </provides>
-	  <requires>
-	    <require>perl-LC</require>
-	  </requires>
 	  <mappings>
             <mapping>
               <directory>/usr/lib</directory>
