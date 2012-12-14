@@ -40,23 +40,6 @@
     </developer>
   </developers>
 
-  <contributors>
-    <contributor>
-      <name>Jane SMITH</name>
-      <email>smith@example.com</email>
-      <roles>
-	<role>author</role>
-      </roles>
-    </contributor>
-    <contributor>
-      <name>Joe DOE</name>
-      <email>doe@example.org</email>
-      <roles>
-	<role>author</role>
-      </roles>
-    </contributor>
-  </contributors>
-
   <build>
     <pluginManagement>
       <plugins>
@@ -193,14 +176,14 @@
 	  <name>${project.artifactId}</name>
 	  <mappings>
             <mapping>
-              <directory>/usr/lib</directory>
+              <directory>/usr/lib/perl/LC</directory>
               <filemode>644</filemode>
               <username>root</username>
               <groupname>root</groupname>
               <directoryIncluded>false</directoryIncluded>
               <sources>
                 <source>
-                  <location>${project.build.directory}/lib</location>
+                  <location>${project.build.directory}/lib/perl/LC</location>
                 </source>
               </sources>
 	      <recurseDirectories>true</recurseDirectories>
@@ -222,7 +205,7 @@
 	      </sources>
 	    </mapping>
 	    <mapping>
-	      <directory>/usr/share/doc/man</directory>
+	      <directory>/usr/share/doc/man/man8</directory>
 	      <filemode>644</filemode>
 	      <username>root</username>
 	      <groupname>root</groupname>
@@ -231,7 +214,7 @@
 	      <directoryIncluded>false</directoryIncluded>
 	      <sources>
 		<source>
-		  <location>${project.build.directory}/doc/man</location>
+		  <location>${project.build.directory}/doc/man/man8</location>
 		</source>
 	      </sources>
 	      <recurseDirectories>true</recurseDirectories>
