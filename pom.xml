@@ -41,15 +41,6 @@
   </developers>
 
   <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>org.quattor.pan</groupId>
-          <artifactId>panc-maven-plugin</artifactId>
-          <version>9.0.0-RC3</version>
-        </plugin>
-      </plugins>
-    </pluginManagement>
     <plugins>
       <plugin>
 	<groupId>org.apache.maven.plugins</groupId>
@@ -171,9 +162,12 @@
       <plugin>
 	<groupId>org.codehaus.mojo</groupId>
 	<artifactId>rpm-maven-plugin</artifactId>
-	<configuration>
-	  <summary>Common Application Framework for Quattor Perl applications</summary>
+	<configuration combine.self="override">
+	  <summary>Lionel Cons' Perl libraries</summary>
 	  <name>${project.artifactId}</name>
+	  <requires/>
+	  <group>Quattor</group>
+	  <provides/>
 	  <mappings>
             <mapping>
               <directory>/usr/lib/perl/LC</directory>
