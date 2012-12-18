@@ -33,6 +33,12 @@
     </license>
   </licenses>
 
+  <scm>
+    <connection>scm:git:git://github.com/quattor/LC.git</connection>
+    <developerConnection>scm:git:git@github.com:quattor/LC.git</developerConnection>
+    <url>https://github.com/quattor/LC</url>
+  </scm>
+
   <developers>
     <developer>
       <name>Lionel Cons</name>
