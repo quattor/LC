@@ -1,7 +1,4 @@
-<project
-    xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
   <modelVersion>4.0.0</modelVersion>
 
@@ -9,7 +6,7 @@
   <artifactId>perl-LC</artifactId>
 
   <packaging>pom</packaging>
-  <version>1.10.1-SNAPSHOT</version>
+  <version>1.11.0</version>
   <name>Lionel Cons' Perl modules</name>
 
   <repositories>
@@ -140,9 +137,9 @@
 	    <configuration>
 	      <tasks name="Rename">
 		<move filtering="true" todir="${project.build.directory}/doc/pod/LC">
-		  <fileset dir="${project.build.directory}/doc/pod/LC"/>
+		  <fileset dir="${project.build.directory}/doc/pod/LC" />
 		  <mapper>
-		    <globmapper from="*.pm" to="*.pod"/>
+		    <globmapper from="*.pm" to="*.pod" />
 		  </mapper>
 		</move>
 		<echo>Renaming stuff?</echo>
@@ -171,9 +168,9 @@
 	<configuration combine.self="override">
 	  <summary>Lionel Cons' Perl libraries</summary>
 	  <name>${project.artifactId}</name>
-	  <requires/>
+	  <requires />
 	  <group>Quattor</group>
-	  <provides/>
+	  <provides />
 	  <mappings>
             <mapping>
               <directory>/usr/lib/perl/LC</directory>
