@@ -6,7 +6,7 @@
   <artifactId>perl-LC</artifactId>
 
   <packaging>pom</packaging>
-  <version>1.11.1-SNAPSHOT</version>
+  <version>1.11.1</version>
   <name>Lionel Cons' Perl modules</name>
 
   <repositories>
