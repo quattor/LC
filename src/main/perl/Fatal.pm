@@ -167,9 +167,10 @@ sub untaint_paths
     return @res; 
 }
 
-# C<untaint_regexp> takes a string as argument and tries to untaint it
-# by matching the regexp. Throws error and returns an undef if the match 
-# fails, or the first matching group otherwsie.
+# C<untaint_regexp> takes a string as first argument and tries to untaint it
+# by matching a compiled regular expression C<regex> as second argument. 
+# Throws error and returns an undef if the match fails, 
+# or the first matching group otherwise.
 # The default regexp is C<qr/^()[0-9A-Za-z]+)$/>, i.e. only allow digits 
 # and numbers. 
 sub untaint_regexp 
