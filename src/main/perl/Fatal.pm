@@ -149,9 +149,47 @@ sub syswrite (*$;$$) {
 #                                                                              #
 #---############################################################################
 
+# C<untaint_paths> takes path(s) as argument(s), and tries to untaint them
+# Throws error and returns an undef if one of them fails the check, else 
+# it returns the same number of untainted paths.
+sub untaint_paths 
+{
+    my (@paths) = @_;
+    my @res = ();
+    foreach my $path (@paths) {
+        if ($path =~ /^([ &:#-\@\w.]+)$/) {
+            push(@res, $1); # untainted data
+        } else {
+            throw_error("untaint_path invalid path $1 in paths @paths");
+            return; 
+        };
+    }
+    return @res; 
+}
+
+# C<untaint_regexp> takes a string as first argument and tries to untaint it
+# by matching a compiled regular expression C<regex> as second argument. 
+# Throws error and returns an undef if the match fails, 
+# or the first matching group otherwise.
+# The default regexp is C<qr/^()[0-9A-Za-z]+)$/>, i.e. only allow digits 
+# and numbers. 
+sub untaint_regexp 
+{
+    my $txt = shift;
+    my $regex = shift || qr/^([0-9A-Za-z]+)$/;
+    if ($txt =~ m/$regex/) {
+        return $1;
+    } else {
+        throw_error("untaint_regex invalid txt $txt for regexp $regex");
+        return; 
+    } 
+}
+
 sub chmod ($@) {
     my($mode, @paths) = @_;
-
+    
+    @paths = untaint_paths(@paths);
+    
     return(SUCCESS) if CORE::chmod($mode, @paths) == @paths;
     local $" = ", ";
     throw_error("chmod(0" . sprintf("%o", $mode) . ", @paths)", $!);
@@ -161,6 +199,10 @@ sub chmod ($@) {
 sub chown ($$@) {
     my($uid, $gid, @paths) = @_;
 
+    $uid = untaint_regexp($uid);
+    $gid = untaint_regexp($gid);
+    @paths = untaint_paths(@paths);
+    
     return(SUCCESS) if CORE::chown($uid, $gid, @paths) == @paths;
     local $" = ", ";
     throw_error("chown($uid, $gid, @paths)", $!);
@@ -170,6 +212,8 @@ sub chown ($$@) {
 sub unlink (@) {
     my(@paths) = @_;
 
+    @paths = untaint_paths(@paths);
+    
     return(SUCCESS) if CORE::unlink(@paths) == @paths;
     local $" = ", ";
     throw_error("unlink(@paths)", $!);
@@ -178,7 +222,11 @@ sub unlink (@) {
 
 sub utime ($$@) {
     my($atime, $mtime, @paths) = @_;
-
+    
+    $atime = untaint_regexp($atime);
+    $mtime = untaint_regexp($mtime);
+    @paths = untaint_paths(@paths);
+    
     return(SUCCESS) if CORE::utime($atime, $mtime, @paths) == @paths;
     local $" = ", ";
     throw_error("utime($atime, $mtime, @paths)", $!);
@@ -188,6 +236,8 @@ sub utime ($$@) {
 sub readlink ($) {
     my($path) = @_;
     my($res);
+
+    ($path) = untaint_paths($path);
 
     $res = CORE::readlink($path);
     return($res) if defined($res);
@@ -199,6 +249,8 @@ sub stat ($) {
     my($path) = @_;
     my(@res);
 
+    ($path) = untaint_paths($path);
+
     @res = CORE::stat($path);
     return(@res) if @res;
     throw_error("stat($path)", $!);
@@ -209,6 +261,8 @@ sub lstat ($) {
     my($path) = @_;
     my(@res);
 
+    ($path) = untaint_paths($path);
+
     @res = CORE::lstat($path);
     return(@res) if @res;
     throw_error("lstat($path)", $!);
@@ -218,6 +272,9 @@ sub lstat ($) {
 sub rename ($$) {
     my($oldpath, $newpath) = @_;
 
+    ($oldpath) = untaint_paths($oldpath);
+    ($newpath) = untaint_paths($newpath);
+
     return(SUCCESS) if CORE::rename($oldpath, $newpath);
     throw_error("rename($oldpath, $newpath)", $!);
     return();    
@@ -226,6 +283,9 @@ sub rename ($$) {
 sub link ($$) {
     my($oldpath, $newpath) = @_;
 
+    ($oldpath) = untaint_paths($oldpath);
+    ($newpath) = untaint_paths($newpath);
+
     return(SUCCESS) if CORE::link($oldpath, $newpath);
     throw_error("link($oldpath, $newpath)", $!);
     return();    
@@ -233,6 +293,9 @@ sub link ($$) {
 
 sub symlink ($$) {
     my($oldpath, $newpath) = @_;
+
+    ($oldpath) = untaint_paths($oldpath);
+    ($newpath) = untaint_paths($newpath);
 
     return(SUCCESS) if CORE::symlink($oldpath, $newpath);
     throw_error("symlink($oldpath, $newpath)", $!);
@@ -248,6 +311,8 @@ sub symlink ($$) {
 sub chdir ($) {
     my($path) = @_;
 
+    ($path) = untaint_paths($path);
+
     return(SUCCESS) if CORE::chdir($path);
     throw_error("chdir($path)", $!);
     return();
@@ -257,6 +322,8 @@ sub chdir ($) {
 sub mkdir ($$) {
     my($path, $mode) = @_;
 
+    ($path) = untaint_paths($path);
+
     return(SUCCESS) if CORE::mkdir($path, $mode);
     throw_error("mkdir($path, 0" . sprintf("%o", $mode) . ")", $!);
     return();
@@ -264,6 +331,8 @@ sub mkdir ($$) {
 
 sub rmdir ($) {
     my($path) = @_;
+
+    ($path) = untaint_paths($path);
 
     return(SUCCESS) if CORE::rmdir($path);
     throw_error("rmdir($path)", $!);
