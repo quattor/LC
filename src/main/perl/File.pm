@@ -97,13 +97,9 @@ sub directory_contents ($) {
 
 sub path_for_open ($) {
     my($path) = @_;
-    if ($path =~ /^([ &:#-\@\w.]+)$/) {
-        $path = $1; #data is now untainted
-        $path =~ s=^([^/])=./$1=;
-        return($path . "\0");
-    } else {
-        return;
-    }
+
+    $path =~ s=^([^/])=./$1=;
+    return($path . "\0");
 }
 
 #+++############################################################################
