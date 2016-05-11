@@ -1,20 +1,15 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-
   <modelVersion>4.0.0</modelVersion>
-
   <groupId>org.quattor.client.libraries</groupId>
   <artifactId>perl-LC</artifactId>
-
   <packaging>pom</packaging>
   <version>16.2.1-SNAPSHOT</version>
   <name>Lionel Cons' Perl modules</name>
-
   <parent>
     <groupId>org.quattor.maven</groupId>
     <artifactId>build-profile</artifactId>
-    <version>1.42</version>
+    <version>1.49</version>
   </parent>
-
   <licenses>
     <license>
       <name>Apache 2 License</name>
@@ -22,124 +17,121 @@
       <comments>Copyright (c) Responsible Organization</comments>
     </license>
   </licenses>
-
   <scm>
     <connection>scm:git:git://github.com/quattor/LC.git</connection>
     <developerConnection>scm:git:git@github.com:quattor/LC.git</developerConnection>
     <url>https://github.com/quattor/LC</url>
   </scm>
-
   <developers>
     <developer>
       <name>Lionel Cons</name>
       <email>Lionel.Cons@cern.ch</email>
     </developer>
   </developers>
-
   <build>
     <plugins>
       <plugin>
-	<groupId>org.apache.maven.plugins</groupId>
-	<artifactId>maven-resources-plugin</artifactId>
-	<executions>
-	  <execution>
-	    <id>filter-perl-sources</id>
-	    <phase>process-sources</phase>
-	    <goals>
-	      <goal>copy-resources</goal>
-	    </goals>
-	    <configuration combine.self="override">
-	      <outputDirectory>${project.build.directory}/lib/perl/LC</outputDirectory>
-	      <resources>
-		<resource>
-		  <directory>src/main/perl</directory>
-		  <includes>
-		    <include>*.pm</include>
-		  </includes>
-		  <filtering>true</filtering>
-		</resource>
-	      </resources>
-	    </configuration>
-	  </execution>
-	  <execution>
-	    <id>filter-doc-sources</id>
-	    <phase>process-sources</phase>
-	    <goals>
-	      <goal>copy-resources</goal>
-	    </goals>
-	    <configuration>
-	      <outputDirectory>${project.build.directory}/doc/eg</outputDirectory>
-	      <resources>
-		<resource>
-		  <directory>src/main/doc</directory>
-		</resource>
-	      </resources>
-	    </configuration>
-	  </execution>
-	  <execution>
-	    <id>filter-conf-sources</id>
-	    <phase>process-sources</phase>
-	    <goals>
-	      <goal>copy-resources</goal>
-	    </goals>
-	    <configuration>
-	      <outputDirectory>${project.build.directory}/etc</outputDirectory>
-	      <encoding>UTF-8</encoding>
-	      <delimiters>
-		<delimiter>${*}</delimiter>
-	      </delimiters>
-	      <resources>
-		<resource>
-		  <directory>src/main/conf</directory>
-		</resource>
-	      </resources>
-	    </configuration>
-	  </execution>
-	  <execution>
-	    <id>filter-pod-sources</id>
-	    <phase>process-sources</phase>
-	    <goals>
-	      <goal>copy-resources</goal>
-	    </goals>
-	    <configuration self.combine="override">
-	      <outputDirectory>${project.build.directory}/doc/pod/LC</outputDirectory>
-	      <resources>
-		<resource>
-		  <directory>src/main/perl</directory>
-		  <includes>
-		    <include>*.pm</include>
-		  </includes>
-		  <filtering>true</filtering>
-		</resource>
-	      </resources>
-	    </configuration>
-	  </execution>
-	</executions>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>filter-perl-sources</id>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration combine.self="override">
+              <outputDirectory>${project.build.directory}/lib/perl/LC</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/main/perl</directory>
+                  <includes>
+                    <include>*.pm</include>
+                  </includes>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>filter-doc-sources</id>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/doc/eg</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/main/doc</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>filter-conf-sources</id>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/etc</outputDirectory>
+              <encoding>UTF-8</encoding>
+              <delimiters>
+                <delimiter>${*}</delimiter>
+              </delimiters>
+              <resources>
+                <resource>
+                  <directory>src/main/conf</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>filter-pod-sources</id>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration self.combine="override">
+              <outputDirectory>${project.build.directory}/doc/pod/LC</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/main/perl</directory>
+                  <includes>
+                    <include>*.pm</include>
+                  </includes>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <!-- Ok, so the build tools *really* want to have a bunch of
 	   .pod files under doc/pod. We just rename them. -->
       <plugin>
-	<artifactId>maven-antrun-plugin</artifactId>
-	<executions>
-	  <execution>
-	    <id>rename-pod-sources</id>
-	    <phase>process-sources</phase>
-	    <goals>
-	      <goal>run</goal>
-	    </goals>
-	    <configuration>
-	      <tasks name="Rename">
-		<move filtering="true" todir="${project.build.directory}/doc/pod/LC">
-		  <fileset dir="${project.build.directory}/doc/pod/LC" />
-		  <mapper>
-		    <globmapper from="*.pm" to="*.pod" />
-		  </mapper>
-		</move>
-		<echo>Renaming stuff?</echo>
-	      </tasks>
-	    </configuration>
-	  </execution>
-	</executions>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>rename-pod-sources</id>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <tasks name="Rename">
+                <move filtering="true" todir="${project.build.directory}/doc/pod/LC">
+                  <fileset dir="${project.build.directory}/doc/pod/LC"/>
+                  <mapper>
+                    <globmapper from="*.pm" to="*.pod"/>
+                  </mapper>
+                </move>
+                <echo>Renaming stuff?</echo>
+              </tasks>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
@@ -148,71 +140,59 @@
           <execution>
             <id>tarballs</id>
             <configuration combine.self="override">
-	      <descriptors>
-		<descriptor>target/dependency/assemblies/bin.xml</descriptor>
-	      </descriptors>
+              <descriptors>
+                <descriptor>target/dependency/assemblies/bin.xml</descriptor>
+              </descriptors>
             </configuration>
           </execution>
         </executions>
       </plugin>
       <plugin>
-	<groupId>org.codehaus.mojo</groupId>
-	<artifactId>rpm-maven-plugin</artifactId>
-	<configuration combine.self="override">
-	  <summary>Lionel Cons' Perl libraries</summary>
-	  <name>${project.artifactId}</name>
-	  <requires />
-	  <group>Quattor</group>
-	  <provides />
-	  <mappings>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>rpm-maven-plugin</artifactId>
+        <configuration>
+          <summary>Lionel Cons' Perl libraries</summary>
+          <name>${project.artifactId}</name>
+          <url>https://github.com/quattor/LC/tree/master</url>
+          <mappings>
             <mapping>
               <directory>/usr/lib/perl/LC</directory>
-              <filemode>644</filemode>
-              <username>root</username>
-              <groupname>root</groupname>
               <directoryIncluded>false</directoryIncluded>
               <sources>
                 <source>
                   <location>${project.build.directory}/lib/perl/LC</location>
                 </source>
               </sources>
-	      <recurseDirectories>true</recurseDirectories>
+              <recurseDirectories>true</recurseDirectories>
             </mapping>
-	    <mapping>
-	      <directory>/usr/share/doc/${project.artifactId}-${project.version}</directory>
-	      <filemode>644</filemode>
-	      <username>root</username>
-	      <groupname>root</groupname>
-	      <documentation>true</documentation>
-	      <directoryIncluded>false</directoryIncluded>
-	      <sources>
-		<source>
-		  <location>${basedir}</location>
-		  <includes>
-		    <include>ChangeLog</include>
-		  </includes>
-		</source>
-	      </sources>
-	    </mapping>
-	    <mapping>
-	      <directory>/usr/share/doc/man/man8</directory>
-	      <filemode>644</filemode>
-	      <username>root</username>
-	      <groupname>root</groupname>
-	      <configuration>false</configuration>
-	      <documentation>true</documentation>
-	      <directoryIncluded>false</directoryIncluded>
-	      <sources>
-		<source>
-		  <location>${project.build.directory}/doc/man/man8</location>
-		</source>
-	      </sources>
-	      <recurseDirectories>true</recurseDirectories>
-	    </mapping>
-	  </mappings>
-	</configuration>
+            <mapping>
+              <directory>/usr/share/doc/${project.artifactId}-${project.version}</directory>
+              <documentation>true</documentation>
+              <directoryIncluded>false</directoryIncluded>
+              <sources>
+                <source>
+                  <location>${basedir}</location>
+                  <includes>
+                    <include>ChangeLog</include>
+                  </includes>
+                </source>
+              </sources>
+            </mapping>
+            <mapping>
+              <directory>/usr/share/doc/man/man8</directory>
+              <configuration>false</configuration>
+              <documentation>true</documentation>
+              <directoryIncluded>false</directoryIncluded>
+              <sources>
+                <source>
+                  <location>${project.build.directory}/doc/man/man8</location>
+                </source>
+              </sources>
+              <recurseDirectories>true</recurseDirectories>
+            </mapping>
+          </mappings>
+        </configuration>
       </plugin>
     </plugins>
   </build>
-
 </project>
