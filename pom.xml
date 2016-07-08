@@ -3,7 +3,7 @@
   <groupId>org.quattor.client.libraries</groupId>
   <artifactId>perl-LC</artifactId>
   <packaging>pom</packaging>
-  <version>16.6.0-rc2-SNAPSHOT</version>
+  <version>16.6.0-rc3</version>
   <name>Lionel Cons' Perl modules</name>
   <parent>
     <groupId>org.quattor.maven</groupId>
