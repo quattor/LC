@@ -536,19 +536,10 @@ sub link ($$;%) {
     $target = _realpath($otarget);
     $message = $opt{hard} ? "create hard link $osource => $otarget" :
 	"create symlink $osource -> $otarget";
-    #
-    # check target
-    #
-    if ($otarget =~ /^\//) {
-	$test = $target;
-    } else {
-	$test = $source;
-	$test =~ s=[^/]+$==;
-	$test .= $otarget;
-    }
+
     if ($opt{hard}) {
         # Check target that is required to exist.
-	@stat = LC::Fatal::lstat($test);
+	@stat = LC::Fatal::lstat($target);
         # With magic _ after a lstat, -d tests the symlink, not its target
 	if (@stat) {
 	    if (-d _) {
@@ -559,6 +550,15 @@ sub link ($$;%) {
 	    ($tdev, $tino) = @stat[ST_DEV, ST_INO];
 	}
     } elsif (not $opt{nocheck}) {
+        # check target: if it is a relative path, interpret it relatively to
+        # the source directory
+        if ($otarget =~ /^\//) {
+    	$test = $target;
+        } else {
+    	$test = $source;
+    	$test =~ s=[^/]+$==;
+        	$test .= $otarget;
+        }
 	@stat = LC::Fatal::lstat($test);
     } else {
 	@stat = (1); # to pass the test below ;-)
