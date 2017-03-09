@@ -14,7 +14,7 @@ package LC::Check;
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = sprintf("%d.%02d", q$Revision: 1.21 $ =~ /(\d+)\.(\d+)/);
+our $VERSION = sprintf("%d.%02d", q$Revision: 1.22 $ =~ /(\d+)\.(\d+)/);
 
 #
 # modules
@@ -536,19 +536,11 @@ sub link ($$;%) {
     $target = _realpath($otarget);
     $message = $opt{hard} ? "create hard link $osource => $otarget" :
 	"create symlink $osource -> $otarget";
-    #
-    # check target
-    #
-    if ($otarget =~ /^\//) {
-	$test = $target;
-    } else {
-	$test = $source;
-	$test =~ s=[^/]+$==;
-	$test .= $otarget;
-    }
+
     if ($opt{hard}) {
-	# note: we follow symlinks for $target to be compatible with ln(1)
-	@stat = LC::Fatal::stat($test);
+        # Check target that is required to exist.
+	@stat = LC::Fatal::lstat($target);
+        # With magic _ after a lstat, -d tests the symlink, not its target
 	if (@stat) {
 	    if (-d _) {
 		throw_error("invalid hard link target ($otarget)",
@@ -558,6 +550,15 @@ sub link ($$;%) {
 	    ($tdev, $tino) = @stat[ST_DEV, ST_INO];
 	}
     } elsif (not $opt{nocheck}) {
+        # check target: if it is a relative path, interpret it relatively to
+        # the source directory
+        if ($otarget =~ /^\//) {
+    	$test = $target;
+        } else {
+    	$test = $source;
+    	$test =~ s=[^/]+$==;
+        	$test .= $otarget;
+        }
 	@stat = LC::Fatal::lstat($test);
     } else {
 	@stat = (1); # to pass the test below ;-)
@@ -581,9 +582,10 @@ sub link ($$;%) {
     @stat = LC::Fatal::lstat($source);
     if (@stat) {
 	if ($opt{hard}) {
-	    #
+            #
 	    # check hard link
-	    #
+            # With magic _ after a lstat, -d tests the symlink, not its target
+            #
 	    if (-d _) {
 		throw_error("cannot hard link $osource", "it is a directory");
 		return();
