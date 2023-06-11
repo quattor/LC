@@ -4,7 +4,7 @@
   <artifactId>perl-LC</artifactId>
   <packaging>pom</packaging>
   <version>21.12.3-SNAPSHOT</version>
-  <name>Lionel Cons' Perl modules</name>
+  <name>perl-LC</name>
   <parent>
     <groupId>org.quattor.maven</groupId>
     <artifactId>build-profile</artifactId>
@@ -153,6 +153,9 @@
         <configuration>
           <summary>Lionel Cons' Perl libraries</summary>
           <name>${project.artifactId}</name>
+          <description>perl-LC is a set of Perl modules written by Lionel Cons (CERN), providing
+methods for securely manipulating/managing files, processes and a few other
+utilities.</description>
           <url>https://github.com/quattor/LC/tree/master</url>
           <mappings>
             <mapping>
